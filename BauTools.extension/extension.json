@@ -1,0 +1,9 @@
+﻿{
+  "type": "extension",
+  "name": "BauTools",
+  "author": "Arch Sergio Castro",
+  "description": "BauTools Architecture Suite — Neural Generative Zoning, ZFA Calculator, Real-Time 3D Massing & Level Management for Revit.",
+  "website": "https://github.com",
+  "version": "2.4.0",
+  "min_pyrevit_version": "4.8"
+}

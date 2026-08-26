@@ -1,0 +1,11 @@
+<?xml version="1.0" encoding="utf-8"?>
+<RevitAddIns>
+  <AddIn Type="Application">
+    <Name>Zoning Floor Area Calculator</Name>
+    <Assembly>C:\Users\MSI\AppData\Roaming\Autodesk\Revit\Addins\2026\ZoningFloorArea\ZoningFloorArea.dll</Assembly>
+    <FullClassName>ZoningFloorArea.App</FullClassName>
+    <ClientId>a7e492b1-5821-4f18-a621-8f9f7438c821</ClientId>
+    <VendorId>BauTools</VendorId>
+    <VendorDescription>BauTools by Arch Sergio Castro - Revit Productivity Add-ins</VendorDescription>
+  </AddIn>
+</RevitAddIns>

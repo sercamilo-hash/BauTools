@@ -1,0 +1,29 @@
+﻿# Visual Studio / C# build artifacts
+[Bb]in/
+[Oo]bj/
+*.user
+*.suo
+*.userosscache
+*.sln.docstates
+.vs/
+.vscode/
+
+# Keep the compiled DLL in the pyRevit extension bin folder for distribution
+!BauTools.extension/bin/ZoningFloorArea.dll
+
+# Autodesk Revit proprietary assemblies (Do not distribute on public repos)
+lib/RevitAPI.dll
+lib/RevitAPIUI.dll
+lib/
+*.dll.config
+
+# OS generated files
+Thumbs.db
+ehthumbs.db
+Desktop.ini
+$RECYCLE.BIN/
+.DS_Store
+
+# Temporary files
+*.tmp
+*.log
