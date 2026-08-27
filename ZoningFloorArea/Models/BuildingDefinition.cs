@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using System.Collections.Generic;
 using System.Collections.ObjectModel;
 using System.ComponentModel;
@@ -11,6 +11,8 @@ namespace ZoningFloorArea.Models
         private string _id;
         private string _name;
         private string _scopeBoxName;
+        private double _footprintWidthFt;
+        private double _footprintDepthFt;
         private ObservableCollection<TypicalFloorGroup> _typicalGroups;
 
         public event PropertyChangedEventHandler PropertyChanged;
@@ -24,6 +26,32 @@ namespace ZoningFloorArea.Models
                 {
                     _scopeBoxName = value;
                     OnPropertyChanged("ScopeBoxName");
+                }
+            }
+        }
+
+        public double FootprintWidthFt
+        {
+            get { return _footprintWidthFt; }
+            set
+            {
+                if (_footprintWidthFt != value)
+                {
+                    _footprintWidthFt = value;
+                    OnPropertyChanged("FootprintWidthFt");
+                }
+            }
+        }
+
+        public double FootprintDepthFt
+        {
+            get { return _footprintDepthFt; }
+            set
+            {
+                if (_footprintDepthFt != value)
+                {
+                    _footprintDepthFt = value;
+                    OnPropertyChanged("FootprintDepthFt");
                 }
             }
         }
@@ -71,6 +99,9 @@ namespace ZoningFloorArea.Models
         {
             _id = Guid.NewGuid().ToString();
             _name = "Building 1";
+            _scopeBoxName = "(None)";
+            _footprintWidthFt = 150.0;
+            _footprintDepthFt = 100.0;
             _typicalGroups = new ObservableCollection<TypicalFloorGroup>();
         }
 
@@ -78,6 +109,9 @@ namespace ZoningFloorArea.Models
         {
             _id = Guid.NewGuid().ToString();
             _name = name;
+            _scopeBoxName = "(None)";
+            _footprintWidthFt = 150.0;
+            _footprintDepthFt = 100.0;
             _typicalGroups = new ObservableCollection<TypicalFloorGroup>();
         }
 
@@ -96,7 +130,6 @@ namespace ZoningFloorArea.Models
                 }
                 else
                 {
-                    // Check if levelName falls in range or matches source
                     if (string.Equals(g.SourceLevelName, levelName, StringComparison.OrdinalIgnoreCase))
                     {
                         return g;

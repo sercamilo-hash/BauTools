@@ -198,7 +198,7 @@ namespace ZoningFloorArea.Services
             lotInfo.BldgAreaSqFt = GetDouble(props, "BldgArea");
             lotInfo.LotFrontageFt = GetDouble(props, "LotFront");
             lotInfo.LotDepthFt = GetDouble(props, "LotDepth");
-            lotInfo.NumFloors = GetDouble(props, "NumFloors");
+            lotInfo.NumFloors = (int)GetDouble(props, "NumFloors");
             lotInfo.YearBuilt = (int)GetDouble(props, "YearBuilt");
             lotInfo.LandUse = GetString(props, "LandUse");
             lotInfo.OwnerName = GetString(props, "OwnerName");

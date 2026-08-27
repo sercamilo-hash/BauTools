@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.Collections.Generic;
 using System.Linq;
 using Autodesk.Revit.DB;
@@ -95,7 +95,7 @@ namespace ZoningFloorArea.Services
             List<BuildingDefinition> targetBuildings,
             MappingConfig config,
             List<PackageSetting> packageSettings,
-            int viewScale,
+            int globalViewScale,
             bool onlyTypicalRanges)
         {
             Dictionary<string, ElementId> createdMap = new Dictionary<string, ElementId>(StringComparer.OrdinalIgnoreCase);
@@ -120,30 +120,85 @@ namespace ZoningFloorArea.Services
             {
                 tx.Start();
 
-                foreach (BuildingDefinition bldg in targetBuildings)
+                foreach (PackageSetting pkg in packageSettings)
                 {
-                    ElementId bldgScopeBoxId = ElementId.InvalidElementId;
-                    if (!string.IsNullOrEmpty(bldg.ScopeBoxName) && scopeBoxMap.ContainsKey(bldg.ScopeBoxName))
+                    if (!pkg.IsEnabled) continue;
+
+                    int effectiveScale = pkg.ScaleValue > 0 ? pkg.ScaleValue : (globalViewScale > 0 ? globalViewScale : 96);
+
+                    // Case A: Master Overall Campus Package
+                    if (pkg.PackageType == ViewPackageType.MasterOverall)
                     {
-                        bldgScopeBoxId = scopeBoxMap[bldg.ScopeBoxName];
+                        HashSet<string> processedMasterLevels = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+
+                        foreach (BuildingDefinition bldg in targetBuildings)
+                        {
+                            foreach (TypicalFloorGroup group in bldg.TypicalGroups)
+                            {
+                                string srcLevelName = group.IsDuplexModule ? group.SourceLevelNameLower : group.SourceLevelName;
+                                if (string.IsNullOrEmpty(srcLevelName) || processedMasterLevels.Contains(srcLevelName)) continue;
+                                processedMasterLevels.Add(srcLevelName);
+
+                                Level srcLevel = GetLevelByName(srcLevelName);
+                                if (srcLevel == null) continue;
+
+                                string rangeLabel = GetGroupRangeLabel(group);
+                                string viewName = string.Format("FL. {0} - MASTER OVERALL FLOOR PLAN", rangeLabel);
+                                string titleOnSheet = string.Format("MASTER - {0} OVERALL FLOOR PLAN", rangeLabel.ToUpperInvariant());
+
+                                ViewPlan plan = null;
+                                if (floorPlanVft != null)
+                                {
+                                    plan = ViewPlan.Create(_doc, floorPlanVft.Id, srcLevel.Id);
+                                }
+
+                                if (plan != null)
+                                {
+                                    plan.Name = GetUniqueViewName(viewName);
+                                    plan.Scale = effectiveScale;
+
+                                    if (pkg.SelectedTemplateId != ElementId.InvalidElementId)
+                                    {
+                                        try { plan.ViewTemplateId = pkg.SelectedTemplateId; } catch { }
+                                    }
+
+                                    if (masterScopeBoxId != ElementId.InvalidElementId)
+                                    {
+                                        AssignScopeBoxToView(plan, masterScopeBoxId);
+                                    }
+
+                                    SetTitleOnSheetParameter(plan, titleOnSheet);
+                                    SetViewBuildingParameter(plan, config.ViewBuildingParameterName, "Master");
+                                    createdMap[plan.Name] = plan.Id;
+                                }
+                            }
+                        }
+                        continue;
                     }
 
-                    foreach (TypicalFloorGroup group in bldg.TypicalGroups)
+                    // Case B: Building-Specific Packages (Gross, Deductions, Life Safety, RCP, Architectural)
+                    foreach (BuildingDefinition bldg in targetBuildings)
                     {
-                        string srcLevelName = group.IsDuplexModule ? group.SourceLevelNameLower : group.SourceLevelName;
-                        if (string.IsNullOrEmpty(srcLevelName)) continue;
-
-                        Level srcLevel = GetLevelByName(srcLevelName);
-                        if (srcLevel == null) continue;
-
-                        string rangeLabel = GetGroupRangeLabel(group);
-
-                        foreach (PackageSetting pkg in packageSettings)
+                        ElementId bldgScopeBoxId = ElementId.InvalidElementId;
+                        if (!string.IsNullOrEmpty(bldg.ScopeBoxName) && scopeBoxMap.ContainsKey(bldg.ScopeBoxName))
                         {
-                            if (!pkg.IsEnabled) continue;
+                            bldgScopeBoxId = scopeBoxMap[bldg.ScopeBoxName];
+                        }
+
+                        foreach (TypicalFloorGroup group in bldg.TypicalGroups)
+                        {
+                            string srcLevelName = group.IsDuplexModule ? group.SourceLevelNameLower : group.SourceLevelName;
+                            if (string.IsNullOrEmpty(srcLevelName)) continue;
+
+                            Level srcLevel = GetLevelByName(srcLevelName);
+                            if (srcLevel == null) continue;
+
+                            string rangeLabel = GetGroupRangeLabel(group);
+                            string bldgTag = bldg.Name.ToUpperInvariant();
 
                             ViewPlan plan = null;
                             string viewName = "";
+                            string titleOnSheet = "";
 
                             switch (pkg.PackageType)
                             {
@@ -151,7 +206,8 @@ namespace ZoningFloorArea.Services
                                     if (floorPlanVft != null)
                                     {
                                         plan = ViewPlan.Create(_doc, floorPlanVft.Id, srcLevel.Id);
-                                        viewName = string.Format("FL. {0} - ARCHITECTURAL PLAN ({1})", rangeLabel, bldg.Name.ToUpperInvariant());
+                                        viewName = string.Format("FL. {0} - ARCHITECTURAL PLAN ({1})", rangeLabel, bldgTag);
+                                        titleOnSheet = string.Format("{0} - {1} FLOOR PLAN", bldgTag, rangeLabel.ToUpperInvariant());
                                     }
                                     break;
 
@@ -159,7 +215,8 @@ namespace ZoningFloorArea.Services
                                     if (ceilingPlanVft != null)
                                     {
                                         plan = ViewPlan.Create(_doc, ceilingPlanVft.Id, srcLevel.Id);
-                                        viewName = string.Format("FL. {0} - CEILING PLAN RCP ({1})", rangeLabel, bldg.Name.ToUpperInvariant());
+                                        viewName = string.Format("FL. {0} - CEILING PLAN RCP ({1})", rangeLabel, bldgTag);
+                                        titleOnSheet = string.Format("{0} - {1} REFLECTED CEILING PLAN", bldgTag, rangeLabel.ToUpperInvariant());
                                     }
                                     break;
 
@@ -167,7 +224,8 @@ namespace ZoningFloorArea.Services
                                     if (grossScheme != null)
                                     {
                                         plan = ViewPlan.CreateAreaPlan(_doc, grossScheme.Id, srcLevel.Id);
-                                        viewName = string.Format("FL. {0} - GROSS AREA PLAN ({1})", rangeLabel, bldg.Name.ToUpperInvariant());
+                                        viewName = string.Format("FL. {0} - GROSS AREA PLAN ({1})", rangeLabel, bldgTag);
+                                        titleOnSheet = string.Format("{0} - {1} GROSS AREA PLAN", bldgTag, rangeLabel.ToUpperInvariant());
                                     }
                                     break;
 
@@ -175,7 +233,8 @@ namespace ZoningFloorArea.Services
                                     if (dedScheme != null)
                                     {
                                         plan = ViewPlan.CreateAreaPlan(_doc, dedScheme.Id, srcLevel.Id);
-                                        viewName = string.Format("FL. {0} - DEDUCTIONS PLAN ({1})", rangeLabel, bldg.Name.ToUpperInvariant());
+                                        viewName = string.Format("FL. {0} - DEDUCTIONS PLAN ({1})", rangeLabel, bldgTag);
+                                        titleOnSheet = string.Format("{0} - {1} DEDUCTIONS PLAN", bldgTag, rangeLabel.ToUpperInvariant());
                                     }
                                     break;
 
@@ -183,7 +242,8 @@ namespace ZoningFloorArea.Services
                                     if (floorPlanVft != null)
                                     {
                                         plan = ViewPlan.Create(_doc, floorPlanVft.Id, srcLevel.Id);
-                                        viewName = string.Format("FL. {0} - EGRESS & LIFE SAFETY ({1})", rangeLabel, bldg.Name.ToUpperInvariant());
+                                        viewName = string.Format("FL. {0} - LIFE SAFETY PLAN ({1})", rangeLabel, bldgTag);
+                                        titleOnSheet = string.Format("{0} - {1} LIFE SAFETY PLAN", bldgTag, rangeLabel.ToUpperInvariant());
                                     }
                                     break;
                             }
@@ -191,7 +251,7 @@ namespace ZoningFloorArea.Services
                             if (plan != null)
                             {
                                 plan.Name = GetUniqueViewName(viewName);
-                                if (viewScale > 0) plan.Scale = viewScale;
+                                plan.Scale = effectiveScale;
 
                                 if (pkg.SelectedTemplateId != ElementId.InvalidElementId)
                                 {
@@ -207,6 +267,7 @@ namespace ZoningFloorArea.Services
                                     AssignScopeBoxToView(plan, masterScopeBoxId);
                                 }
 
+                                SetTitleOnSheetParameter(plan, titleOnSheet);
                                 SetViewBuildingParameter(plan, config.ViewBuildingParameterName, bldg.Name);
                                 createdMap[plan.Name] = plan.Id;
                             }
@@ -218,6 +279,126 @@ namespace ZoningFloorArea.Services
             }
 
             return createdMap;
+        }
+
+        private void SetTitleOnSheetParameter(View view, string titleText)
+        {
+            if (view == null || string.IsNullOrEmpty(titleText)) return;
+            try
+            {
+                Parameter p = view.get_Parameter(BuiltInParameter.VIEW_DESCRIPTION);
+                if (p != null && !p.IsReadOnly)
+                {
+                    p.Set(titleText);
+                }
+            }
+            catch
+            {
+            }
+        }
+
+        public string GetGroupRangeLabel(TypicalFloorGroup g)
+        {
+            if (g == null) return "TYPICAL";
+            if (g.IsSingleLevel) return g.SourceLevelName ?? "TYP";
+            if (g.IsDuplexModule)
+            {
+                return string.Format("{0}-{1} (DUPLEX)", g.FromLevelName, g.ToLevelName);
+            }
+            return string.Format("{0} TO {1}", g.FromLevelName, g.ToLevelName);
+        }
+
+        private Level GetLevelByName(string name)
+        {
+            if (string.IsNullOrEmpty(name)) return null;
+            return new FilteredElementCollector(_doc)
+                .OfClass(typeof(Level))
+                .Cast<Level>()
+                .FirstOrDefault(l => string.Equals(l.Name, name, StringComparison.OrdinalIgnoreCase));
+        }
+
+        private AreaScheme GetAreaSchemeByName(string name)
+        {
+            if (string.IsNullOrEmpty(name)) return null;
+            return new FilteredElementCollector(_doc)
+                .OfClass(typeof(AreaScheme))
+                .Cast<AreaScheme>()
+                .FirstOrDefault(s => string.Equals(s.Name, name, StringComparison.OrdinalIgnoreCase));
+        }
+
+        private ViewFamilyType GetViewFamilyType(ViewFamily vf)
+        {
+            return new FilteredElementCollector(_doc)
+                .OfClass(typeof(ViewFamilyType))
+                .Cast<ViewFamilyType>()
+                .FirstOrDefault(vft => vft.ViewFamily == vf);
+        }
+
+        private Dictionary<string, ElementId> GetScopeBoxElementMap()
+        {
+            Dictionary<string, ElementId> map = new Dictionary<string, ElementId>(StringComparer.OrdinalIgnoreCase);
+            try
+            {
+                FilteredElementCollector collector = new FilteredElementCollector(_doc)
+                    .OfCategory(BuiltInCategory.OST_VolumeOfInterest)
+                    .WhereElementIsNotElementType();
+
+                foreach (Element elem in collector)
+                {
+                    if (elem != null && !string.IsNullOrEmpty(elem.Name))
+                    {
+                        map[elem.Name] = elem.Id;
+                    }
+                }
+            }
+            catch
+            {
+            }
+            return map;
+        }
+
+        private void AssignScopeBoxToView(View view, ElementId scopeBoxId)
+        {
+            if (view == null || scopeBoxId == ElementId.InvalidElementId) return;
+            try
+            {
+                Parameter p = view.get_Parameter(BuiltInParameter.VIEWER_VOLUME_OF_INTEREST_CROP);
+                if (p != null && !p.IsReadOnly)
+                {
+                    p.Set(scopeBoxId);
+                }
+            }
+            catch
+            {
+            }
+        }
+
+        private void SetViewBuildingParameter(View view, string paramName, string buildingName)
+        {
+            if (view == null || string.IsNullOrEmpty(paramName) || string.IsNullOrEmpty(buildingName)) return;
+            try
+            {
+                Parameter p = view.LookupParameter(paramName);
+                if (p != null && p.StorageType == StorageType.String && !p.IsReadOnly)
+                {
+                    p.Set(buildingName);
+                }
+            }
+            catch
+            {
+            }
+        }
+
+        private string GetUniqueViewName(string baseName)
+        {
+            string candidate = baseName;
+            int counter = 2;
+            while (IsViewNameExists(candidate))
+            {
+                candidate = string.Format("{0} ({1})", baseName, counter);
+                counter++;
+            }
+            return candidate;
         }
 
         public List<GeneratedViewResult> GenerateMasterAndDependentViews(
@@ -248,47 +429,58 @@ namespace ZoningFloorArea.Services
             {
                 tx.Start();
 
-                List<TypicalFloorGroup> allGroups = new List<TypicalFloorGroup>();
+                HashSet<string> processedLevels = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+
                 foreach (BuildingDefinition bldg in buildings)
                 {
-                    foreach (TypicalFloorGroup g in bldg.TypicalGroups)
+                    foreach (TypicalFloorGroup group in bldg.TypicalGroups)
                     {
-                        allGroups.Add(g);
-                    }
-                }
+                        string srcLevelName = group.IsDuplexModule ? group.SourceLevelNameLower : group.SourceLevelName;
+                        if (string.IsNullOrEmpty(srcLevelName)) continue;
 
-                foreach (TypicalFloorGroup group in allGroups)
-                {
-                    string srcLevelName = group.IsDuplexModule ? group.SourceLevelNameLower : group.SourceLevelName;
-                    if (string.IsNullOrEmpty(srcLevelName)) continue;
+                        Level srcLevel = GetLevelByName(srcLevelName);
+                        if (srcLevel == null) continue;
 
-                    Level srcLevel = GetLevelByName(srcLevelName);
-                    if (srcLevel == null) continue;
+                        string rangeLabel = GetGroupRangeLabel(group);
 
-                    string rangeStr = GetGroupRangeLabel(group);
+                        if (createArchPlans && floorPlanVft != null)
+                        {
+                            string key = string.Format("ARCH_{0}", srcLevelName);
+                            if (!processedLevels.Contains(key))
+                            {
+                                processedLevels.Add(key);
+                                ViewPlan masterView = ViewPlan.Create(_doc, floorPlanVft.Id, srcLevel.Id);
+                                masterView.Name = GetUniqueViewName(string.Format("FL. {0} - MASTER OVERALL FLOOR PLAN", rangeLabel));
+                                if (masterScopeBoxId != ElementId.InvalidElementId) AssignScopeBoxToView(masterView, masterScopeBoxId);
 
-                    if (createArchPlans && floorPlanVft != null)
-                    {
-                        GeneratedViewResult res = CreateMasterAndDependentsForType(
-                            srcLevel, floorPlanVft, null, group, buildings, config,
-                            rangeStr, "ARCHITECTURAL PLAN", masterScopeBoxId, scopeBoxMap);
-                        if (res != null) results.Add(res);
-                    }
+                                GeneratedViewResult gvr = new GeneratedViewResult
+                                {
+                                    MasterView = masterView,
+                                    RangeLabel = rangeLabel,
+                                    ViewTypeLabel = "Architectural"
+                                };
 
-                    if (createGrossPlans && areaPlanVft != null && grossScheme != null)
-                    {
-                        GeneratedViewResult res = CreateMasterAndDependentsForType(
-                            srcLevel, areaPlanVft, grossScheme, group, buildings, config,
-                            rangeStr, "GROSS AREA PLAN", masterScopeBoxId, scopeBoxMap);
-                        if (res != null) results.Add(res);
-                    }
-
-                    if (createDedPlans && areaPlanVft != null && dedScheme != null)
-                    {
-                        GeneratedViewResult res = CreateMasterAndDependentsForType(
-                            srcLevel, areaPlanVft, dedScheme, group, buildings, config,
-                            rangeStr, "DEDUCTIONS PLAN", masterScopeBoxId, scopeBoxMap);
-                        if (res != null) results.Add(res);
+                                if (buildings.Count > 1)
+                                {
+                                    foreach (BuildingDefinition subBldg in buildings)
+                                    {
+                                        ElementId depId = masterView.Duplicate(ViewDuplicateOption.AsDependent);
+                                        View depView = _doc.GetElement(depId) as View;
+                                        if (depView != null)
+                                        {
+                                            depView.Name = GetUniqueViewName(string.Format("FL. {0} - {1} FLOOR PLAN", rangeLabel, subBldg.Name.ToUpperInvariant()));
+                                            if (!string.IsNullOrEmpty(subBldg.ScopeBoxName) && scopeBoxMap.ContainsKey(subBldg.ScopeBoxName))
+                                            {
+                                                AssignScopeBoxToView(depView, scopeBoxMap[subBldg.ScopeBoxName]);
+                                            }
+                                            SetViewBuildingParameter(depView, config.ViewBuildingParameterName, subBldg.Name);
+                                            gvr.DependentViews.Add(depView);
+                                        }
+                                    }
+                                }
+                                results.Add(gvr);
+                            }
+                        }
                     }
                 }
 
@@ -298,217 +490,12 @@ namespace ZoningFloorArea.Services
             return results;
         }
 
-        private GeneratedViewResult CreateMasterAndDependentsForType(
-            Level srcLevel,
-            ViewFamilyType vft,
-            AreaScheme scheme,
-            TypicalFloorGroup group,
-            List<BuildingDefinition> buildings,
-            MappingConfig config,
-            string rangeStr,
-            string typeLabel,
-            ElementId masterScopeBoxId,
-            Dictionary<string, ElementId> scopeBoxMap)
+        private bool IsViewNameExists(string name)
         {
-            ViewPlan masterView = null;
-
-            if (scheme != null)
-            {
-                masterView = ViewPlan.CreateAreaPlan(_doc, scheme.Id, srcLevel.Id);
-            }
-            else
-            {
-                masterView = ViewPlan.Create(_doc, vft.Id, srcLevel.Id);
-            }
-
-            if (masterView == null) return null;
-
-            string masterName = string.Format("FL. {0} - {1} (OVERALL MASTER)", rangeStr, typeLabel);
-            masterView.Name = GetUniqueViewName(masterName);
-
-            if (masterScopeBoxId != ElementId.InvalidElementId)
-            {
-                AssignScopeBoxToView(masterView, masterScopeBoxId);
-            }
-
-            GeneratedViewResult result = new GeneratedViewResult();
-            result.MasterView = masterView;
-            result.RangeLabel = rangeStr;
-            result.ViewTypeLabel = typeLabel;
-
-            foreach (BuildingDefinition bldg in buildings)
-            {
-                ElementId bldgScopeBoxId = ElementId.InvalidElementId;
-                if (!string.IsNullOrEmpty(bldg.ScopeBoxName) && scopeBoxMap.ContainsKey(bldg.ScopeBoxName))
-                {
-                    bldgScopeBoxId = scopeBoxMap[bldg.ScopeBoxName];
-                }
-
-                try
-                {
-                    ElementId depViewId = masterView.Duplicate(ViewDuplicateOption.AsDependent);
-                    View depView = _doc.GetElement(depViewId) as View;
-                    if (depView != null)
-                    {
-                        string depName = string.Format("FL. {0} - {1} ({2})", rangeStr, typeLabel, bldg.Name.ToUpperInvariant());
-                        depView.Name = GetUniqueViewName(depName);
-
-                        if (bldgScopeBoxId != ElementId.InvalidElementId)
-                        {
-                            AssignScopeBoxToView(depView, bldgScopeBoxId);
-                        }
-
-                        SetViewBuildingParameter(depView, config.ViewBuildingParameterName, bldg.Name);
-                        result.DependentViews.Add(depView);
-                    }
-                }
-                catch
-                {
-                }
-            }
-
-            return result;
-        }
-
-        private void AssignScopeBoxToView(View view, ElementId scopeBoxId)
-        {
-            if (view == null || scopeBoxId == ElementId.InvalidElementId) return;
-            try
-            {
-                Parameter p = view.get_Parameter(BuiltInParameter.VIEWER_VOLUME_OF_INTEREST_CROP);
-                if (p != null && !p.IsReadOnly)
-                {
-                    p.Set(scopeBoxId);
-                }
-            }
-            catch
-            {
-            }
-        }
-
-        private void SetViewBuildingParameter(View view, string paramName, string buildingValue)
-        {
-            if (view == null || string.IsNullOrEmpty(paramName) || string.IsNullOrEmpty(buildingValue)) return;
-            try
-            {
-                Parameter p = view.LookupParameter(paramName);
-                if (p != null && !p.IsReadOnly && p.StorageType == StorageType.String)
-                {
-                    p.Set(buildingValue);
-                }
-                else
-                {
-                    Parameter pComm = view.get_Parameter(BuiltInParameter.VIEW_DESCRIPTION);
-                    if (pComm != null && !pComm.IsReadOnly)
-                    {
-                        pComm.Set(buildingValue);
-                    }
-                }
-            }
-            catch
-            {
-            }
-        }
-
-        public string GetGroupRangeLabel(TypicalFloorGroup group)
-        {
-            if (group.IsSingleLevel)
-            {
-                return group.SourceLevelName.ToUpperInvariant();
-            }
-
-            string from = CleanLevelPrefix(group.FromLevelName);
-            string to = CleanLevelPrefix(group.ToLevelName);
-
-            if (group.IsDuplexModule)
-            {
-                return string.Format("{0}-{1} DUPLEX", from, to);
-            }
-
-            return string.Format("{0}-{1} TYPICAL", from, to);
-        }
-
-        private string CleanLevelPrefix(string levelName)
-        {
-            if (string.IsNullOrEmpty(levelName)) return "";
-            return levelName.Replace("Level ", "L").Replace("Piso ", "P").Replace("Nivel ", "N");
-        }
-
-        private Dictionary<string, ElementId> GetScopeBoxElementMap()
-        {
-            Dictionary<string, ElementId> map = new Dictionary<string, ElementId>(StringComparer.OrdinalIgnoreCase);
-            try
-            {
-                FilteredElementCollector collector = new FilteredElementCollector(_doc)
-                    .OfCategory(BuiltInCategory.OST_VolumeOfInterest)
-                    .WhereElementIsNotElementType();
-
-                foreach (Element elem in collector)
-                {
-                    if (elem != null && !string.IsNullOrEmpty(elem.Name))
-                    {
-                        map[elem.Name] = elem.Id;
-                    }
-                }
-            }
-            catch
-            {
-            }
-            return map;
-        }
-
-        private ViewFamilyType GetViewFamilyType(ViewFamily viewFamily)
-        {
-            FilteredElementCollector collector = new FilteredElementCollector(_doc).OfClass(typeof(ViewFamilyType));
-            foreach (ViewFamilyType vft in collector)
-            {
-                if (vft.ViewFamily == viewFamily) return vft;
-            }
-            return null;
-        }
-
-        private AreaScheme GetAreaSchemeByName(string schemeName)
-        {
-            FilteredElementCollector collector = new FilteredElementCollector(_doc).OfClass(typeof(AreaScheme));
-            foreach (AreaScheme s in collector)
-            {
-                if (string.Equals(s.Name, schemeName, StringComparison.OrdinalIgnoreCase)) return s;
-            }
-            return null;
-        }
-
-        private Level GetLevelByName(string name)
-        {
-            FilteredElementCollector collector = new FilteredElementCollector(_doc).OfClass(typeof(Level));
-            foreach (Level l in collector)
-            {
-                if (string.Equals(l.Name, name, StringComparison.OrdinalIgnoreCase)) return l;
-            }
-            return null;
-        }
-
-        private string GetUniqueViewName(string baseName)
-        {
-            string name = baseName;
-            int counter = 1;
-
-            while (IsViewNameTaken(name))
-            {
-                name = string.Format("{0} ({1})", baseName, counter);
-                counter++;
-            }
-
-            return name;
-        }
-
-        private bool IsViewNameTaken(string name)
-        {
-            FilteredElementCollector collector = new FilteredElementCollector(_doc).OfClass(typeof(View));
-            foreach (View v in collector)
-            {
-                if (string.Equals(v.Name, name, StringComparison.OrdinalIgnoreCase)) return true;
-            }
-            return false;
+            return new FilteredElementCollector(_doc)
+                .OfClass(typeof(View))
+                .Cast<View>()
+                .Any(v => !v.IsTemplate && string.Equals(v.Name, name, StringComparison.OrdinalIgnoreCase));
         }
     }
 }

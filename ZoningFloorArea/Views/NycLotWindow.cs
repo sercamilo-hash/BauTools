@@ -39,74 +39,74 @@ namespace ZoningFloorArea.Views
         private readonly List<Level> _levels;
         private readonly List<string> _availableLineStyles;
 
-        private NycLotInfo? _currentLot;
-        private NycBlockContext? _currentBlockContext;
+        private NycLotInfo _currentLot;
+        private NycBlockContext _currentBlockContext;
         private readonly ObservableCollection<NycSearchResult> _searchResults;
 
         // UI Controls - Search
-        private WpfRadioButton _rbSearchAddress = null!;
-        private WpfRadioButton _rbSearchBbl = null!;
-        private StackPanel _panelAddressSearch = null!;
-        private StackPanel _panelBblSearch = null!;
-        private WpfTextBox _txtAddressQuery = null!;
-        private WpfListBox _listSearchResults = null!;
-        private WpfComboBox _comboBorough = null!;
-        private WpfTextBox _txtBlock = null!;
-        private WpfTextBox _txtLot = null!;
-        private WpfButton _btnSearch = null!;
-        private WpfProgressBar _progressBar = null!;
+        private WpfRadioButton _rbSearchAddress = null;
+        private WpfRadioButton _rbSearchBbl = null;
+        private StackPanel _panelAddressSearch = null;
+        private StackPanel _panelBblSearch = null;
+        private WpfTextBox _txtAddressQuery = null;
+        private WpfListBox _listSearchResults = null;
+        private WpfComboBox _comboBorough = null;
+        private WpfTextBox _txtBlock = null;
+        private WpfTextBox _txtLot = null;
+        private WpfButton _btnSearch = null;
+        private WpfProgressBar _progressBar = null;
 
         // UI Controls - Drawing, Level & Grouping Options
-        private WpfComboBox _comboElementType = null!;
-        private WpfComboBox _comboAnchorCorner = null!;
-        private WpfCheckBox _chkAlignPbp = null!;
-        private WpfCheckBox _chkCreatePropLineLvl1 = null!;
-        private WpfComboBox _comboLevels = null!;
+        private WpfComboBox _comboElementType = null;
+        private WpfComboBox _comboAnchorCorner = null;
+        private WpfCheckBox _chkAlignPbp = null;
+        private WpfCheckBox _chkCreatePropLineLvl1 = null;
+        private WpfComboBox _comboLevels = null;
 
         // Proposal C: Grouping Mode Selectors
-        private WpfRadioButton _rbGroupSingle = null!;
-        private WpfRadioButton _rbGroupSplit = null!;
-        private WpfRadioButton _rbGroupNone = null!;
-        private WpfCheckBox _chkPinGroup = null!;
+        private WpfRadioButton _rbGroupSingle = null;
+        private WpfRadioButton _rbGroupSplit = null;
+        private WpfRadioButton _rbGroupNone = null;
+        private WpfCheckBox _chkPinGroup = null;
 
         // Proposal B: Zoning Drafting View Table
-        private WpfCheckBox _chkGenerateZoningTable = null!;
+        private WpfCheckBox _chkGenerateZoningTable = null;
 
         // UI Controls - Granular Line Style Selectors
-        private WpfCheckBox _chkDrawSubjectLot = null!;
-        private WpfComboBox _comboSubjectLineStyle = null!;
-        private WpfCheckBox _chkDrawAdjacentLots = null!;
-        private WpfComboBox _comboAdjacentLineStyle = null!;
-        private WpfCheckBox _chkDrawBlockContext = null!;
-        private WpfComboBox _comboBlockContextLineStyle = null!;
-        private WpfCheckBox _chkDrawSidewalk = null!;
-        private WpfComboBox _comboSidewalkLineStyle = null!;
-        private WpfCheckBox _chkPlaceStreetNotes = null!;
+        private WpfCheckBox _chkDrawSubjectLot = null;
+        private WpfComboBox _comboSubjectLineStyle = null;
+        private WpfCheckBox _chkDrawAdjacentLots = null;
+        private WpfComboBox _comboAdjacentLineStyle = null;
+        private WpfCheckBox _chkDrawBlockContext = null;
+        private WpfComboBox _comboBlockContextLineStyle = null;
+        private WpfCheckBox _chkDrawSidewalk = null;
+        private WpfComboBox _comboSidewalkLineStyle = null;
+        private WpfCheckBox _chkPlaceStreetNotes = null;
 
         // UI Controls - 3D Building Masses
-        private WpfCheckBox _chkCreate3DBuildingMasses = null!;
-        private WpfCheckBox _chkExtrudeSubjectLotBuilding = null!;
+        private WpfCheckBox _chkCreate3DBuildingMasses = null;
+        private WpfCheckBox _chkExtrudeSubjectLotBuilding = null;
 
         // UI Controls - Info Card
-        private Border _infoCardContainer = null!;
-        private WpfTextBlock _txtPlaceholderInfo = null!;
-        private StackPanel _panelLotDetails = null!;
-        private WpfTextBlock _lblLotAddress = null!;
-        private WpfTextBlock _lblLotBbl = null!;
-        private WpfTextBlock _lblBlockContextSummary = null!;
-        private WpfTextBlock _lblZoningSummary = null!;
-        private WpfTextBlock _lblLotArea = null!;
-        private WpfTextBlock _lblBldgArea = null!;
-        private WpfTextBlock _lblResFar = null!;
-        private WpfTextBlock _lblCommFar = null!;
-        private WpfTextBlock _lblFacilFar = null!;
-        private WpfTextBlock _lblBuiltFar = null!;
-        private WpfTextBlock _lblDimensions = null!;
-        private WpfTextBlock _lblExtraDetails = null!;
+        private Border _infoCardContainer = null;
+        private WpfTextBlock _txtPlaceholderInfo = null;
+        private StackPanel _panelLotDetails = null;
+        private WpfTextBlock _lblLotAddress = null;
+        private WpfTextBlock _lblLotBbl = null;
+        private WpfTextBlock _lblBlockContextSummary = null;
+        private WpfTextBlock _lblZoningSummary = null;
+        private WpfTextBlock _lblLotArea = null;
+        private WpfTextBlock _lblBldgArea = null;
+        private WpfTextBlock _lblResFar = null;
+        private WpfTextBlock _lblCommFar = null;
+        private WpfTextBlock _lblFacilFar = null;
+        private WpfTextBlock _lblBuiltFar = null;
+        private WpfTextBlock _lblDimensions = null;
+        private WpfTextBlock _lblExtraDetails = null;
 
         // Action Buttons
-        private WpfButton _btnDrawInRevit = null!;
-        private WpfTextBlock _txtStatusMsg = null!;
+        private WpfButton _btnDrawInRevit = null;
+        private WpfTextBlock _txtStatusMsg = null;
 
         // Theme Colors matching BauTools
         private static readonly WpfColor COL_BG        = (WpfColor)ColorConverter.ConvertFromString("#F8FAFC");
@@ -316,7 +316,8 @@ namespace ZoningFloorArea.Views
             };
             _listSearchResults.SelectionChanged += async (s, e) =>
             {
-                if (_listSearchResults.SelectedItem is NycSearchResult selected && !string.IsNullOrEmpty(selected.Bbl))
+                NycSearchResult selected = _listSearchResults.SelectedItem as NycSearchResult;
+                if (selected != null && !string.IsNullOrEmpty(selected.Bbl))
                 {
                     await LoadLotByBblAsync(selected.Bbl);
                 }
@@ -933,7 +934,7 @@ namespace ZoningFloorArea.Views
                 return;
             }
 
-            SetLoading(true, $"Searching '{query}' in NYC Planning GeoSearch...");
+            SetLoading(true, string.Format("Searching '{0}' in NYC Planning GeoSearch...", query));
             _searchResults.Clear();
             _listSearchResults.Visibility = WpfVisibility.Collapsed;
 
@@ -952,12 +953,12 @@ namespace ZoningFloorArea.Views
                     }
                     _listSearchResults.Visibility = WpfVisibility.Visible;
                     _listSearchResults.SelectedIndex = 0;
-                    SetStatus($"Found {results.Count} address matches. Select one to load geometry.");
+                    SetStatus(string.Format("Found {0} address matches. Select one to load geometry.", results.Count));
                 }
             }
             catch (Exception ex)
             {
-                SetStatus($"Search error: {ex.Message}", true);
+                SetStatus(string.Format("Search error: {0}", ex.Message), true);
             }
             finally
             {
@@ -968,31 +969,33 @@ namespace ZoningFloorArea.Views
         private async Task PerformBblSearchAsync()
         {
             int boroughCode = _comboBorough.SelectedIndex + 1;
-            if (!int.TryParse(_txtBlock.Text.Trim(), out int block) || block <= 0)
+            int block;
+            if (!int.TryParse(_txtBlock.Text.Trim(), out block) || block <= 0)
             {
                 SetStatus("Please enter a valid Block number.", true);
                 return;
             }
-            if (!int.TryParse(_txtLot.Text.Trim(), out int lot) || lot <= 0)
+            int lot;
+            if (!int.TryParse(_txtLot.Text.Trim(), out lot) || lot <= 0)
             {
                 SetStatus("Please enter a valid Lot number.", true);
                 return;
             }
 
-            string bbl = $"{boroughCode}{block:D5}{lot:D4}";
+            string bbl = string.Format("{0}{1:D5}{2:D4}", boroughCode, block, lot);
             await LoadLotByBblAsync(bbl);
         }
 
         private async Task LoadLotByBblAsync(string bbl)
         {
-            SetLoading(true, $"Querying MapPLUTO & 3D Building Footprints for BBL {bbl}...");
+            SetLoading(true, string.Format("Querying MapPLUTO & 3D Building Footprints for BBL {0}...", bbl));
 
             try
             {
                 var lotInfo = await _plutoService.GetLotByBblAsync(bbl);
                 if (lotInfo == null)
                 {
-                    SetStatus($"Could not find MapPLUTO data for BBL {bbl}.", true);
+                    SetStatus(string.Format("Could not find MapPLUTO data for BBL {0}.", bbl), true);
                     _currentLot = null;
                     _currentBlockContext = null;
                     _btnDrawInRevit.IsEnabled = false;
@@ -1010,12 +1013,12 @@ namespace ZoningFloorArea.Views
                     _btnDrawInRevit.IsEnabled = true;
                     int bldgCount = _currentBlockContext.Buildings.Count;
                     int totalCount = _currentBlockContext.AllLots.Count;
-                    SetStatus($"Loaded NYC Lot {lotInfo.Bbl} ({totalCount} lots in block, {bldgCount} 3D buildings). Ready to draw on Level 1 as Group.");
+                    SetStatus(string.Format("Loaded NYC Lot {0} ({1} lots in block, {2} 3D buildings). Ready to draw on Level 1 as Group.", lotInfo.Bbl, totalCount, bldgCount));
                 }
             }
             catch (Exception ex)
             {
-                SetStatus($"Error loading BBL: {ex.Message}", true);
+                SetStatus(string.Format("Error loading BBL: {0}", ex.Message), true);
                 _btnDrawInRevit.IsEnabled = false;
             }
             finally
@@ -1029,25 +1032,25 @@ namespace ZoningFloorArea.Views
             _txtPlaceholderInfo.Visibility = WpfVisibility.Collapsed;
             _panelLotDetails.Visibility = WpfVisibility.Visible;
 
-            _lblLotAddress.Text = string.IsNullOrWhiteSpace(lot.Address) ? $"LOT {lot.Lot}, BLOCK {lot.Block}" : lot.Address.ToUpperInvariant();
-            _lblLotBbl.Text = $"BBL: {lot.Bbl} | Borough: {lot.Borough} | Block: {lot.Block} | Lot: {lot.Lot} | ZIP: {lot.ZipCode}";
+            _lblLotAddress.Text = string.IsNullOrWhiteSpace(lot.Address) ? string.Format("LOT {0}, BLOCK {1}", lot.Lot, lot.Block) : lot.Address.ToUpperInvariant();
+            _lblLotBbl.Text = string.Format("BBL: {0} | Borough: {1} | Block: {2} | Lot: {3} | ZIP: {4}", lot.Bbl, lot.Borough, lot.Block, lot.Lot, lot.ZipCode);
 
             var streets = blockContext.GetSurroundingStreetNames();
             string streetSummary = streets.Count > 0 ? string.Join(", ", streets.Values) : "N/A";
             int bldgCount = blockContext.Buildings.Count;
-            _lblBlockContextSummary.Text = $"🏙️ Block {lot.Block}: {blockContext.AllLots.Count} Lots | {bldgCount} 3D Buildings | Streets: {streetSummary}";
+            _lblBlockContextSummary.Text = string.Format("Block {0}: {1} Lots | {2} 3D Buildings | Streets: {3}", lot.Block, blockContext.AllLots.Count, bldgCount, streetSummary);
 
             _lblZoningSummary.Text = lot.GetZoningSummary();
-            _lblExtraDetails.Text = $"Owner: {(string.IsNullOrEmpty(lot.OwnerName) ? "N/A" : lot.OwnerName)} | Class: {lot.BuildingClass} | Built: {(lot.YearBuilt > 0 ? lot.YearBuilt.ToString() : "N/A")} | Floors: {lot.NumFloors}";
+            _lblExtraDetails.Text = string.Format("Owner: {0} | Class: {1} | Built: {2} | Floors: {3}", string.IsNullOrEmpty(lot.OwnerName) ? "N/A" : lot.OwnerName, lot.BuildingClass, lot.YearBuilt > 0 ? lot.YearBuilt.ToString() : "N/A", lot.NumFloors);
 
-            _lblResFar.Text = lot.ResidFar.ToString("F2");
+            _lblResFar.Text = lot.ResFar.ToString("F2");
             _lblCommFar.Text = lot.CommFar.ToString("F2");
             _lblFacilFar.Text = lot.FacilFar.ToString("F2");
             _lblBuiltFar.Text = lot.BuiltFar.ToString("F2");
 
-            _lblLotArea.Text = $"{lot.LotAreaSqFt:N0} SF";
-            _lblBldgArea.Text = $"{lot.BldgAreaSqFt:N0} SF";
-            _lblDimensions.Text = $"{lot.WidthFt:F1} ft × {lot.DepthFt:F1} ft";
+            _lblLotArea.Text = string.Format("{0:N0} SF", lot.LotAreaSqFt);
+            _lblBldgArea.Text = string.Format("{0:N0} SF", lot.TotalBldgAreaSqFt);
+            _lblDimensions.Text = string.Format("{0:F1} ft x {1:F1} ft", lot.WidthFt, lot.DepthFt);
         }
 
         private void ExecuteDrawLot()
@@ -1059,8 +1062,13 @@ namespace ZoningFloorArea.Views
             }
 
             LotGroupingMode grpMode = LotGroupingMode.SingleGroup;
-            if (_rbGroupSplit.IsChecked == true) grpMode = LotGroupingMode.SplitGroups;
-            else if (_rbGroupNone.IsChecked == true) grpMode = LotGroupingMode.NoGroup;
+            if (_rbGroupSplit.IsChecked == true) grpMode = LotGroupingMode.SplitSubjectAndContext;
+            else if (_rbGroupNone.IsChecked == true) grpMode = LotGroupingMode.NoGrouping;
+
+            string subjStyle = _comboSubjectLineStyle.SelectedItem != null ? _comboSubjectLineStyle.SelectedItem.ToString() : RevitLotDrawerService.STYLE_SUBJECT_RED;
+            string adjStyle = _comboAdjacentLineStyle.SelectedItem != null ? _comboAdjacentLineStyle.SelectedItem.ToString() : RevitLotDrawerService.STYLE_ADJACENT_ORANGE;
+            string ctxStyle = _comboBlockContextLineStyle.SelectedItem != null ? _comboBlockContextLineStyle.SelectedItem.ToString() : RevitLotDrawerService.STYLE_CONTEXT_GRAY;
+            string swStyle = _comboSidewalkLineStyle.SelectedItem != null ? _comboSidewalkLineStyle.SelectedItem.ToString() : RevitLotDrawerService.STYLE_SIDEWALK_BLUE;
 
             var options = new LotDrawOptions
             {
@@ -1072,13 +1080,13 @@ namespace ZoningFloorArea.Views
                 PinCreatedGroup = _chkPinGroup.IsChecked == true,
                 GenerateZoningDraftingTable = _chkGenerateZoningTable.IsChecked == true,
                 DrawSubjectLot = _chkDrawSubjectLot.IsChecked == true,
-                SubjectLineStyle = _comboSubjectLineStyle.SelectedItem?.ToString() ?? RevitLotDrawerService.STYLE_SUBJECT_RED,
+                SubjectLineStyle = subjStyle,
                 DrawAdjacentLots = _chkDrawAdjacentLots.IsChecked == true,
-                AdjacentLineStyle = _comboAdjacentLineStyle.SelectedItem?.ToString() ?? RevitLotDrawerService.STYLE_ADJACENT_ORANGE,
+                AdjacentLineStyle = adjStyle,
                 DrawRemainingBlockLots = _chkDrawBlockContext.IsChecked == true,
-                BlockContextLineStyle = _comboBlockContextLineStyle.SelectedItem?.ToString() ?? RevitLotDrawerService.STYLE_CONTEXT_GRAY,
+                BlockContextLineStyle = ctxStyle,
                 DrawSidewalks = _chkDrawSidewalk.IsChecked == true,
-                SidewalkLineStyle = _comboSidewalkLineStyle.SelectedItem?.ToString() ?? RevitLotDrawerService.STYLE_SIDEWALK_BLUE,
+                SidewalkLineStyle = swStyle,
                 PlaceStreetTextNotes = _chkPlaceStreetNotes.IsChecked == true,
                 Create3DBuildingMasses = _chkCreate3DBuildingMasses.IsChecked == true,
                 ExtrudeSubjectLotBuilding = _chkExtrudeSubjectLotBuilding.IsChecked == true
@@ -1093,9 +1101,9 @@ namespace ZoningFloorArea.Views
 
             if (result.Success)
             {
-                string targetLevelName = options.TargetLevel?.Name ?? "Level 1";
+                string targetLevelName = options.TargetLevel != null ? options.TargetLevel.Name : "Level 1";
                 MessageBox.Show(
-                    $"{result.Message}\n\nLevel: {targetLevelName}\nLot: {_currentLot.Address}\nBBL: {_currentLot.Bbl}\nZoning: {_currentLot.GetZoningSummary()}\nArea: {_currentLot.LotAreaSqFt:N0} SF",
+                    string.Format("{0}\n\nLevel: {1}\nLot: {2}\nBBL: {3}\nZoning: {4}\nArea: {5:N0} SF", result.Message, targetLevelName, _currentLot != null ? _currentLot.Address : "", _currentLot != null ? _currentLot.Bbl : "", _currentLot != null ? _currentLot.GetZoningSummary() : "", _currentLot != null ? _currentLot.LotAreaSqFt : 0.0),
                     "BauTools — NYC Lot & Urban Context Created",
                     MessageBoxButton.OK,
                     MessageBoxImage.Information);

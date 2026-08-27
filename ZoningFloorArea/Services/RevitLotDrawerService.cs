@@ -8,45 +8,69 @@ namespace ZoningFloorArea.Services
 {
     public class LotDrawOptions
     {
-        public LotElementType ElementType { get; set; } = LotElementType.ModelCurves;
-        public LotAnchorCorner AnchorCorner { get; set; } = LotAnchorCorner.Southwest;
-        public bool AlignWithPbp { get; set; } = true;
+        public LotElementType ElementType { get; set; }
+        public LotAnchorCorner AnchorCorner { get; set; }
+        public bool AlignWithPbp { get; set; }
 
         // Toggles
-        public bool EnsureLevel1Placement { get; set; } = true;
-        public bool DrawSubjectLot { get; set; } = true;
-        public bool DrawAdjacentLots { get; set; } = true;
-        public bool DrawRemainingBlockLots { get; set; } = true;
-        public bool DrawSidewalks { get; set; } = true;
-        public double SidewalkWidthFt { get; set; } = 12.0;
-        public bool PlaceStreetTextNotes { get; set; } = true;
+        public bool EnsureLevel1Placement { get; set; }
+        public bool DrawSubjectLot { get; set; }
+        public bool DrawAdjacentLots { get; set; }
+        public bool DrawRemainingBlockLots { get; set; }
+        public bool DrawSidewalks { get; set; }
+        public double SidewalkWidthFt { get; set; }
+        public bool PlaceStreetTextNotes { get; set; }
 
         // Grouping
-        public LotGroupingMode GroupingMode { get; set; } = LotGroupingMode.SingleGroup;
-        public bool PinCreatedGroup { get; set; } = false;
+        public LotGroupingMode GroupingMode { get; set; }
+        public bool PinCreatedGroup { get; set; }
 
         // Zoning Drafting Table View (Proposal B)
-        public bool GenerateZoningDraftingTable { get; set; } = true;
+        public bool GenerateZoningDraftingTable { get; set; }
 
         // 3D Building Masses (Extrusions with real NYC heights)
-        public bool Create3DBuildingMasses { get; set; } = true;
-        public bool ExtrudeSubjectLotBuilding { get; set; } = false;
+        public bool Create3DBuildingMasses { get; set; }
+        public bool ExtrudeSubjectLotBuilding { get; set; }
 
         // Custom Line Style Names
-        public string SubjectLineStyle { get; set; } = RevitLotDrawerService.STYLE_SUBJECT_RED;
-        public string AdjacentLineStyle { get; set; } = RevitLotDrawerService.STYLE_ADJACENT_ORANGE;
-        public string BlockContextLineStyle { get; set; } = RevitLotDrawerService.STYLE_CONTEXT_GRAY;
-        public string SidewalkLineStyle { get; set; } = RevitLotDrawerService.STYLE_SIDEWALK_BLUE;
+        public string SubjectLineStyle { get; set; }
+        public string AdjacentLineStyle { get; set; }
+        public string BlockContextLineStyle { get; set; }
+        public string SidewalkLineStyle { get; set; }
 
-        public Level? TargetLevel { get; set; }
+        public Level TargetLevel { get; set; }
+
+        public LotDrawOptions()
+        {
+            ElementType = LotElementType.ModelCurves;
+            AnchorCorner = LotAnchorCorner.Southwest;
+            AlignWithPbp = true;
+            EnsureLevel1Placement = true;
+            DrawSubjectLot = true;
+            DrawAdjacentLots = true;
+            DrawRemainingBlockLots = true;
+            DrawSidewalks = true;
+            SidewalkWidthFt = 12.0;
+            PlaceStreetTextNotes = true;
+            GroupingMode = LotGroupingMode.SingleGroup;
+            PinCreatedGroup = false;
+            GenerateZoningDraftingTable = true;
+            Create3DBuildingMasses = true;
+            ExtrudeSubjectLotBuilding = false;
+            SubjectLineStyle = RevitLotDrawerService.STYLE_SUBJECT_RED;
+            AdjacentLineStyle = RevitLotDrawerService.STYLE_ADJACENT_ORANGE;
+            BlockContextLineStyle = RevitLotDrawerService.STYLE_CONTEXT_GRAY;
+            SidewalkLineStyle = RevitLotDrawerService.STYLE_SIDEWALK_BLUE;
+            TargetLevel = null;
+        }
     }
 
     public class LotDrawResult
     {
         public bool Success { get; set; }
-        public string Message { get; set; } = string.Empty;
-        public string GroupName { get; set; } = string.Empty;
-        public string DraftingViewName { get; set; } = string.Empty;
+        public string Message { get; set; }
+        public string GroupName { get; set; }
+        public string DraftingViewName { get; set; }
         public int SubjectCurvesCount { get; set; }
         public int AdjacentLotsCount { get; set; }
         public int AdjacentCurvesCount { get; set; }
@@ -55,6 +79,13 @@ namespace ZoningFloorArea.Services
         public int SidewalkCurvesCount { get; set; }
         public int BuildingMassesCount { get; set; }
         public int TextNotesCount { get; set; }
+
+        public LotDrawResult()
+        {
+            Message = string.Empty;
+            GroupName = string.Empty;
+            DraftingViewName = string.Empty;
+        }
     }
 
     public class RevitLotDrawerService
@@ -95,7 +126,7 @@ namespace ZoningFloorArea.Services
             return XYZ.Zero;
         }
 
-        public Level? GetLevel1()
+        public Level GetLevel1()
         {
             var levels = new FilteredElementCollector(_doc)
                 .OfClass(typeof(Level))
@@ -163,24 +194,25 @@ namespace ZoningFloorArea.Services
             XYZ pbpPos = options.AlignWithPbp ? GetProjectBasePointPosition() : XYZ.Zero;
             XYZ anchorPoint = subjectLot.GetAnchorPoint(options.AnchorCorner);
 
-            Level level1 = options.TargetLevel ?? GetLevel1()!;
-            double zElevation = level1?.Elevation ?? pbpPos.Z;
+            Level level1 = options.TargetLevel != null ? options.TargetLevel : GetLevel1();
+            double zElevation = level1 != null ? level1.Elevation : pbpPos.Z;
 
             double offsetX = pbpPos.X - anchorPoint.X;
             double offsetY = pbpPos.Y - anchorPoint.Y;
             double tolerance = _doc.Application.ShortCurveTolerance;
 
-            using var tx = new Transaction(_doc, $"BauTools - NYC Lot {subjectLot.Bbl} & 3D Masses Group");
-            tx.Start();
+            using (Transaction tx = new Transaction(_doc, string.Format("BauTools - NYC Lot {0} & 3D Masses Group", subjectLot.Bbl)))
+            {
+                tx.Start();
 
             try
             {
                 EnsurePresetStylesExist();
 
-                GraphicsStyle? styleSubject = ResolveLineStyle(options.SubjectLineStyle, STYLE_SUBJECT_RED, new Color(220, 38, 38), 4);
-                GraphicsStyle? styleAdjacent = ResolveLineStyle(options.AdjacentLineStyle, STYLE_ADJACENT_ORANGE, new Color(234, 88, 12), 2);
-                GraphicsStyle? styleContext = ResolveLineStyle(options.BlockContextLineStyle, STYLE_CONTEXT_GRAY, new Color(148, 163, 184), 1);
-                GraphicsStyle? styleSidewalk = ResolveLineStyle(options.SidewalkLineStyle, STYLE_SIDEWALK_BLUE, new Color(2, 132, 199), 2);
+                GraphicsStyle styleSubject = ResolveLineStyle(options.SubjectLineStyle, STYLE_SUBJECT_RED, new Color(220, 38, 38), 4);
+                GraphicsStyle styleAdjacent = ResolveLineStyle(options.AdjacentLineStyle, STYLE_ADJACENT_ORANGE, new Color(234, 88, 12), 2);
+                GraphicsStyle styleContext = ResolveLineStyle(options.BlockContextLineStyle, STYLE_CONTEXT_GRAY, new Color(148, 163, 184), 1);
+                GraphicsStyle styleSidewalk = ResolveLineStyle(options.SidewalkLineStyle, STYLE_SIDEWALK_BLUE, new Color(2, 132, 199), 2);
 
                 Plane plane = level1 != null
                     ? Plane.CreateByNormalAndOrigin(XYZ.BasisZ, new XYZ(0, 0, level1.Elevation))
@@ -206,7 +238,7 @@ namespace ZoningFloorArea.Services
                 if (options.DrawSubjectLot && subjectLoops.Count > 0)
                 {
                     var ids = DrawLoopsWithIds(subjectLoops, options.ElementType, sketchPlane, styleSubject,
-                        $"NYC Development Lot {subjectLot.Bbl} ({subjectLot.Address}) - Zoning: {subjectLot.GetZoningSummary()} - Area: {subjectLot.LotAreaSqFt:N0} SF");
+                        string.Format("NYC Development Lot {0} ({1}) - Zoning: {2} - Area: {3:N0} SF", subjectLot.Bbl, subjectLot.Address, subjectLot.GetZoningSummary(), subjectLot.LotAreaSqFt));
                     subjectCurvesCount = ids.Count;
                     subjectElementsToGroup.AddRange(ids);
                 }
@@ -220,7 +252,7 @@ namespace ZoningFloorArea.Services
                         if (adjLoops.Count > 0)
                         {
                             var ids = DrawLoopsWithIds(adjLoops, options.ElementType, sketchPlane, styleAdjacent,
-                                $"NYC Adjacent Lot {adjLot.Lot} (BBL: {adjLot.Bbl}, {adjLot.Address})");
+                                string.Format("NYC Adjacent Lot {0} (BBL: {1}, {2})", adjLot.Lot, adjLot.Bbl, adjLot.Address));
                             if (ids.Count > 0)
                             {
                                 adjacentCurvesCount += ids.Count;
@@ -240,7 +272,7 @@ namespace ZoningFloorArea.Services
                         if (contextLoops.Count > 0)
                         {
                             var ids = DrawLoopsWithIds(contextLoops, options.ElementType, sketchPlane, styleContext,
-                                $"NYC Block {blockContext.BlockNumber} - Lot {lot.Lot} ({lot.Address})");
+                                string.Format("NYC Block {0} - Lot {1} ({2})", blockContext.BlockNumber, lot.Lot, lot.Address));
                             if (ids.Count > 0)
                             {
                                 contextCurvesCount += ids.Count;
@@ -278,7 +310,7 @@ namespace ZoningFloorArea.Services
                     sidewalkLoop.Append(Line.CreateBound(p4, p1));
 
                     var ids = DrawLoopsWithIds(new List<CurveLoop> { sidewalkLoop }, LotElementType.ModelCurves, sketchPlane, styleSidewalk,
-                        $"NYC Block {blockContext.BlockNumber} - Sidewalk Curb Perimeter ({swOffset} ft width)");
+                        string.Format("NYC Block {0} - Sidewalk Curb Perimeter ({1} ft width)", blockContext.BlockNumber, swOffset));
                     sidewalkCurvesCount = ids.Count;
                     contextElementsToGroup.AddRange(ids);
                 }
@@ -309,9 +341,9 @@ namespace ZoningFloorArea.Services
 
                                         DirectShape ds = DirectShape.CreateElement(_doc, catId);
                                         ds.SetShape(new List<GeometryObject> { solid });
-                                        ds.Name = $"NYC Building BIN {bldg.Bin} ({bldg.EffectiveHeightFt:F0} ft)";
+                                        ds.Name = string.Format("NYC Building BIN {0} ({1:F0} ft)", bldg.Bin, bldg.EffectiveHeightFt);
                                         var comm = ds.get_Parameter(BuiltInParameter.ALL_MODEL_INSTANCE_COMMENTS);
-                                        comm?.Set($"Address: {bldg.Address} | BIN: {bldg.Bin} | Roof Height: {bldg.HeightRoofFt:F1} ft | Floors: {bldg.NumFloors} | Year: {bldg.YearBuilt}");
+                                        if (comm != null) comm.Set(string.Format("Address: {0} | BIN: {1} | Roof Height: {2:F1} ft | Floors: {3} | Year: {4}", bldg.Address, bldg.Bin, bldg.HeightRoofFt, bldg.NumFloors, bldg.YearBuilt));
 
                                         if (bldg.IsSubjectLotBuilding)
                                             subjectElementsToGroup.Add(ds.Id);
@@ -350,9 +382,9 @@ namespace ZoningFloorArea.Services
 
                                         DirectShape ds = DirectShape.CreateElement(_doc, catId);
                                         ds.SetShape(new List<GeometryObject> { solid });
-                                        ds.Name = $"NYC Lot {lot.Bbl} Mass ({height:F0} ft)";
+                                        ds.Name = string.Format("NYC Lot {0} Mass ({1:F0} ft)", lot.Bbl, height);
                                         var comm = ds.get_Parameter(BuiltInParameter.ALL_MODEL_INSTANCE_COMMENTS);
-                                        comm?.Set($"Lot: {lot.Address} | BBL: {lot.Bbl} | Height: {height:F0} ft | Floors: {lot.NumFloors} | Zoning: {lot.GetZoningSummary()}");
+                                        if (comm != null) comm.Set(string.Format("Lot: {0} | BBL: {1} | Height: {2:F0} ft | Floors: {3} | Zoning: {4}", lot.Address, lot.Bbl, height, lot.NumFloors, lot.GetZoningSummary()));
 
                                         if (lot.Bbl == subjectLot.Bbl)
                                             subjectElementsToGroup.Add(ds.Id);
@@ -388,22 +420,26 @@ namespace ZoningFloorArea.Services
                     double eastX = bMaxX + offsetX + textDistance;
                     double westX = bMinX + offsetX - textDistance;
 
-                    if (streets.TryGetValue("North", out string? northSt) && !string.IsNullOrWhiteSpace(northSt))
+                    string northSt;
+                    if (streets.TryGetValue("North", out northSt) && !string.IsNullOrWhiteSpace(northSt))
                     {
                         if (CreateTextAnnotation(new XYZ(midX, northY, zElevation), northSt.ToUpperInvariant()))
                             textNotesCount++;
                     }
-                    if (streets.TryGetValue("South", out string? southSt) && !string.IsNullOrWhiteSpace(southSt))
+                    string southSt;
+                    if (streets.TryGetValue("South", out southSt) && !string.IsNullOrWhiteSpace(southSt))
                     {
                         if (CreateTextAnnotation(new XYZ(midX, southY, zElevation), southSt.ToUpperInvariant()))
                             textNotesCount++;
                     }
-                    if (streets.TryGetValue("East", out string? eastSt) && !string.IsNullOrWhiteSpace(eastSt))
+                    string eastSt;
+                    if (streets.TryGetValue("East", out eastSt) && !string.IsNullOrWhiteSpace(eastSt))
                     {
                         if (CreateTextAnnotation(new XYZ(eastX, midY, zElevation), eastSt.ToUpperInvariant()))
                             textNotesCount++;
                     }
-                    if (streets.TryGetValue("West", out string? westSt) && !string.IsNullOrWhiteSpace(westSt))
+                    string westSt;
+                    if (streets.TryGetValue("West", out westSt) && !string.IsNullOrWhiteSpace(westSt))
                     {
                         if (CreateTextAnnotation(new XYZ(westX, midY, zElevation), westSt.ToUpperInvariant()))
                             textNotesCount++;
@@ -422,12 +458,12 @@ namespace ZoningFloorArea.Services
                     {
                         string baseName = !string.IsNullOrWhiteSpace(subjectLot.Address)
                             ? subjectLot.Address.Trim().ToUpperInvariant()
-                            : $"NYC Lot - BBL {subjectLot.Bbl}";
+                            : string.Format("NYC Lot - BBL {0}", subjectLot.Bbl);
 
-                        var grp = CreateAndNameGroup(allElements, baseName, $"BBL: {subjectLot.Bbl} | Zoning: {subjectLot.GetZoningSummary()} | Area: {subjectLot.LotAreaSqFt:N0} SF | Block: {blockContext.BlockNumber}", options.PinCreatedGroup);
+                        var grp = CreateAndNameGroup(allElements, baseName, string.Format("BBL: {0} | Zoning: {1} | Area: {2:N0} SF | Block: {3}", subjectLot.Bbl, subjectLot.GetZoningSummary(), subjectLot.LotAreaSqFt, blockContext.BlockNumber), options.PinCreatedGroup);
                         if (grp != null)
                         {
-                            groupResultSummary = $"📦 Group: [{grp.GroupType.Name}]";
+                            groupResultSummary = string.Format("📦 Group: [{0}]", grp.GroupType.Name);
                         }
                     }
                 }
@@ -438,23 +474,23 @@ namespace ZoningFloorArea.Services
                     if (subjectElementsToGroup.Count > 0)
                     {
                         string lotName = !string.IsNullOrWhiteSpace(subjectLot.Address)
-                            ? $"NYC Lot - {subjectLot.Address.Trim().ToUpperInvariant()}"
-                            : $"NYC Lot - BBL {subjectLot.Bbl}";
+                            ? string.Format("NYC Lot - {0}", subjectLot.Address.Trim().ToUpperInvariant())
+                            : string.Format("NYC Lot - BBL {0}", subjectLot.Bbl);
 
-                        var grp1 = CreateAndNameGroup(subjectElementsToGroup, lotName, $"Development Lot {subjectLot.Bbl} | Zoning: {subjectLot.GetZoningSummary()} | Area: {subjectLot.LotAreaSqFt:N0} SF", options.PinCreatedGroup);
+                        var grp1 = CreateAndNameGroup(subjectElementsToGroup, lotName, string.Format("Development Lot {0} | Zoning: {1} | Area: {2:N0} SF", subjectLot.Bbl, subjectLot.GetZoningSummary(), subjectLot.LotAreaSqFt), options.PinCreatedGroup);
                         if (grp1 != null) groupNames.Add(grp1.GroupType.Name);
                     }
 
                     if (contextElementsToGroup.Count > 0)
                     {
-                        string ctxName = $"NYC Context - Block {blockContext.BlockNumber}";
-                        var grp2 = CreateAndNameGroup(contextElementsToGroup, ctxName, $"NYC Context Block {blockContext.BlockNumber} ({adjacentLotsCount} adjacent, {contextLotsCount} block lots, {buildingMassesCount} 3D masses)", options.PinCreatedGroup);
+                        string ctxName = string.Format("NYC Context - Block {0}", blockContext.BlockNumber);
+                        var grp2 = CreateAndNameGroup(contextElementsToGroup, ctxName, string.Format("NYC Context Block {0} ({1} adjacent, {2} block lots, {3} 3D masses)", blockContext.BlockNumber, adjacentLotsCount, contextLotsCount, buildingMassesCount), options.PinCreatedGroup);
                         if (grp2 != null) groupNames.Add(grp2.GroupType.Name);
                     }
 
                     if (groupNames.Count > 0)
                     {
-                        groupResultSummary = $"📦 Groups: [{string.Join("] & [", groupNames)}]";
+                        groupResultSummary = string.Format("📦 Groups: [{0}]", string.Join("] & [", groupNames));
                     }
                 }
 
@@ -479,8 +515,8 @@ namespace ZoningFloorArea.Services
                 _doc.Regenerate();
                 tx.Commit();
 
-                string levelName = level1?.Name ?? "Level 1";
-                string dvMsg = !string.IsNullOrEmpty(draftingViewName) ? $"\n📊 Zoning Table View: [{draftingViewName}]" : "";
+                string levelName = level1 != null ? level1.Name : "Level 1";
+                string dvMsg = !string.IsNullOrEmpty(draftingViewName) ? string.Format("\n📊 Zoning Table View: [{0}]", draftingViewName) : "";
 
                 return new LotDrawResult
                 {
@@ -495,7 +531,7 @@ namespace ZoningFloorArea.Services
                     SidewalkCurvesCount = sidewalkCurvesCount,
                     BuildingMassesCount = buildingMassesCount,
                     TextNotesCount = textNotesCount,
-                    Message = $"Successfully created on [{levelName}]: Development Lot {subjectLot.Bbl} + {adjacentLotsCount} adjacent lots + {contextLotsCount} block lots + {buildingMassesCount} 3D building masses + {textNotesCount} street titles.\n\n{groupResultSummary}{dvMsg}"
+                    Message = string.Format("Successfully created on [{0}]: Development Lot {1} + {2} adjacent lots + {3} block lots + {4} 3D building masses + {5} street titles.\n\n{6}{7}", levelName, subjectLot.Bbl, adjacentLotsCount, contextLotsCount, buildingMassesCount, textNotesCount, groupResultSummary, dvMsg)
                 };
             }
             catch (Exception ex)
@@ -506,12 +542,13 @@ namespace ZoningFloorArea.Services
                 return new LotDrawResult
                 {
                     Success = false,
-                    Message = $"Error drawing block context in Revit: {ex.Message}"
+                    Message = string.Format("Error drawing block context in Revit: {0}", ex.Message)
                 };
+            }
             }
         }
 
-        private Group? CreateAndNameGroup(List<ElementId> elementIds, string baseName, string comments, bool pinGroup)
+        private Group CreateAndNameGroup(List<ElementId> elementIds, string baseName, string comments, bool pinGroup)
         {
             if (elementIds.Count == 0) return null;
 
@@ -524,7 +561,7 @@ namespace ZoningFloorArea.Services
                     int suffix = 1;
                     while (GroupTypeExists(uniqueName))
                     {
-                        uniqueName = $"{baseName} ({suffix++})";
+                        uniqueName = string.Format("{0} ({1})", baseName, suffix++);
                     }
 
                     try
@@ -536,7 +573,7 @@ namespace ZoningFloorArea.Services
                     try
                     {
                         var comm = createdGroup.get_Parameter(BuiltInParameter.ALL_MODEL_INSTANCE_COMMENTS);
-                        comm?.Set(comments);
+                        if (comm != null) comm.Set(comments);
                     }
                     catch { }
 
@@ -558,9 +595,9 @@ namespace ZoningFloorArea.Services
         /// <summary>
         /// Creates a professional native Drafting View containing the full NYC Zoning & MapPLUTO calculation table.
         /// </summary>
-        private ViewDrafting? CreateZoningSummaryDraftingView(NycLotInfo lot, NycBlockContext blockContext)
+        private ViewDrafting CreateZoningSummaryDraftingView(NycLotInfo lot, NycBlockContext blockContext)
         {
-            ViewFamilyType? draftingVft = new FilteredElementCollector(_doc)
+            ViewFamilyType draftingVft = new FilteredElementCollector(_doc)
                 .OfClass(typeof(ViewFamilyType))
                 .Cast<ViewFamilyType>()
                 .FirstOrDefault(v => v.ViewFamily == ViewFamily.Drafting);
@@ -568,14 +605,14 @@ namespace ZoningFloorArea.Services
             if (draftingVft == null) return null;
 
             string baseViewName = !string.IsNullOrWhiteSpace(lot.Address)
-                ? $"NYC Zoning - {lot.Address.Trim().ToUpperInvariant()}"
-                : $"NYC Zoning - BBL {lot.Bbl}";
+                ? string.Format("NYC Zoning - {0}", lot.Address.Trim().ToUpperInvariant())
+                : string.Format("NYC Zoning - BBL {0}", lot.Bbl);
 
             string viewName = baseViewName;
             int counter = 1;
             while (new FilteredElementCollector(_doc).OfClass(typeof(ViewDrafting)).Cast<ViewDrafting>().Any(v => v.Name.Equals(viewName, StringComparison.OrdinalIgnoreCase)))
             {
-                viewName = $"{baseViewName} ({counter++})";
+                viewName = string.Format("{0} ({1})", baseViewName, counter++);
             }
 
             ViewDrafting dv = ViewDrafting.Create(_doc, draftingVft.Id);
@@ -599,23 +636,23 @@ namespace ZoningFloorArea.Services
             // 1. Title
             DrawRect(dv, startX, curY - titleH, tableWidth, titleH);
             AddCellText(dv, startX, curY - titleH, tableWidth, titleH,
-                $"NYC ZONING & PLUTO URBAN ANALYSIS — {lot.Address.ToUpperInvariant()}", textTypeId, HorizontalTextAlignment.Center);
+                string.Format("NYC ZONING & PLUTO URBAN ANALYSIS — {0}", lot.Address.ToUpperInvariant()), textTypeId, HorizontalTextAlignment.Center);
             curY -= titleH;
 
             // 2. Identification Subheaders
             DrawRect(dv, startX, curY - rowH, tableWidth, rowH);
             AddCellText(dv, startX, curY - rowH, tableWidth, rowH,
-                $"BBL: {lot.Bbl}   |   Borough: {lot.Borough}   |   Block: {lot.Block}   |   Lot: {lot.Lot}   |   ZIP: {lot.ZipCode}", textTypeId, HorizontalTextAlignment.Left);
+                string.Format("BBL: {0}   |   Borough: {1}   |   Block: {2}   |   Lot: {3}   |   ZIP: {4}", lot.Bbl, lot.Borough, lot.Block, lot.Lot, lot.ZipCode), textTypeId, HorizontalTextAlignment.Left);
             curY -= rowH;
 
             DrawRect(dv, startX, curY - rowH, tableWidth, rowH);
             AddCellText(dv, startX, curY - rowH, tableWidth, rowH,
-                $"Zoning District(s): {lot.GetZoningSummary()}   |   Owner: {(string.IsNullOrEmpty(lot.OwnerName) ? "N/A" : lot.OwnerName)}", textTypeId, HorizontalTextAlignment.Left);
+                string.Format("Zoning District(s): {0}   |   Owner: {1}", lot.GetZoningSummary(), string.IsNullOrEmpty(lot.OwnerName) ? "N/A" : lot.OwnerName), textTypeId, HorizontalTextAlignment.Left);
             curY -= rowH;
 
             DrawRect(dv, startX, curY - rowH, tableWidth, rowH);
             AddCellText(dv, startX, curY - rowH, tableWidth, rowH,
-                $"Land Use: {lot.LandUse}   |   Bldg Class: {lot.BuildingClass}   |   Year Built: {(lot.YearBuilt > 0 ? lot.YearBuilt.ToString() : "N/A")}   |   Floors: {lot.NumFloors}", textTypeId, HorizontalTextAlignment.Left);
+                string.Format("Land Use: {0}   |   Bldg Class: {1}   |   Year Built: {2}   |   Floors: {3}", lot.LandUse, lot.BuildingClass, lot.YearBuilt > 0 ? lot.YearBuilt.ToString() : "N/A", lot.NumFloors), textTypeId, HorizontalTextAlignment.Left);
             curY -= rowH;
 
             // 3. Matrix Table Header
@@ -633,22 +670,22 @@ namespace ZoningFloorArea.Services
             curY -= headerH;
 
             // 4. Matrix Rows
-            double maxResGfa = lot.LotAreaSqFt * lot.ResidFar;
+            double maxResGfa = lot.LotAreaSqFt * lot.ResFar;
             double maxComGfa = lot.LotAreaSqFt * lot.CommFar;
             double maxFacGfa = lot.LotAreaSqFt * lot.FacilFar;
 
-            DrawMatrixRow(dv, startX, ref curY, col1W, col2W, col3W, col4W, rowH, "Residential FAR", lot.ResidFar.ToString("F2"), $"{lot.LotAreaSqFt:N0} SF", maxResGfa > 0 ? $"{maxResGfa:N0} SF" : "Not Permitted", textTypeId);
-            DrawMatrixRow(dv, startX, ref curY, col1W, col2W, col3W, col4W, rowH, "Commercial FAR", lot.CommFar.ToString("F2"), $"{lot.LotAreaSqFt:N0} SF", maxComGfa > 0 ? $"{maxComGfa:N0} SF" : "Not Permitted", textTypeId);
-            DrawMatrixRow(dv, startX, ref curY, col1W, col2W, col3W, col4W, rowH, "Community Facility FAR", lot.FacilFar.ToString("F2"), $"{lot.LotAreaSqFt:N0} SF", maxFacGfa > 0 ? $"{maxFacGfa:N0} SF" : "Not Permitted", textTypeId);
-            DrawMatrixRow(dv, startX, ref curY, col1W, col2W, col3W, col4W, rowH, "Built / Existing FAR", lot.BuiltFar.ToString("F2"), $"{lot.LotAreaSqFt:N0} SF", $"{lot.BldgAreaSqFt:N0} SF (Existing)", textTypeId);
-            DrawMatrixRow(dv, startX, ref curY, col1W, col2W, col3W, col4W, rowH, "Lot Dimensions (W × D)", "-", $"{lot.LotAreaSqFt:N0} SF", $"{lot.WidthFt:F1} ft × {lot.DepthFt:F1} ft", textTypeId);
+            DrawMatrixRow(dv, startX, ref curY, col1W, col2W, col3W, col4W, rowH, "Residential FAR", lot.ResFar.ToString("F2"), string.Format("{0:N0} SF", lot.LotAreaSqFt), maxResGfa > 0 ? string.Format("{0:N0} SF", maxResGfa) : "Not Permitted", textTypeId);
+            DrawMatrixRow(dv, startX, ref curY, col1W, col2W, col3W, col4W, rowH, "Commercial FAR", lot.CommFar.ToString("F2"), string.Format("{0:N0} SF", lot.LotAreaSqFt), maxComGfa > 0 ? string.Format("{0:N0} SF", maxComGfa) : "Not Permitted", textTypeId);
+            DrawMatrixRow(dv, startX, ref curY, col1W, col2W, col3W, col4W, rowH, "Community Facility FAR", lot.FacilFar.ToString("F2"), string.Format("{0:N0} SF", lot.LotAreaSqFt), maxFacGfa > 0 ? string.Format("{0:N0} SF", maxFacGfa) : "Not Permitted", textTypeId);
+            DrawMatrixRow(dv, startX, ref curY, col1W, col2W, col3W, col4W, rowH, "Built / Existing FAR", lot.BuiltFar.ToString("F2"), string.Format("{0:N0} SF", lot.LotAreaSqFt), string.Format("{0:N0} SF (Existing)", lot.TotalBldgAreaSqFt), textTypeId);
+            DrawMatrixRow(dv, startX, ref curY, col1W, col2W, col3W, col4W, rowH, "Lot Dimensions (W x D)", "-", string.Format("{0:N0} SF", lot.LotAreaSqFt), string.Format("{0:F1} ft x {1:F1} ft", lot.WidthFt, lot.DepthFt), textTypeId);
 
             // 5. Context Summary Footer
             var streets = blockContext.GetSurroundingStreetNames();
             string streetStr = streets.Count > 0 ? string.Join(", ", streets.Values) : "N/A";
             DrawRect(dv, startX, curY - rowH, tableWidth, rowH);
             AddCellText(dv, startX, curY - rowH, tableWidth, rowH,
-                $"Block {blockContext.BlockNumber} Context: {blockContext.AllLots.Count} Lots | {blockContext.Buildings.Count} 3D Buildings | Streets: {streetStr}", textTypeId, HorizontalTextAlignment.Left);
+                string.Format("Block {0} Context: {1} Lots | {2} 3D Buildings | Streets: {3}", blockContext.BlockNumber, blockContext.AllLots.Count, blockContext.Buildings.Count, streetStr), textTypeId, HorizontalTextAlignment.Left);
             curY -= rowH;
 
             return dv;
@@ -730,7 +767,7 @@ namespace ZoningFloorArea.Services
             }
             catch
             {
-                return null!;
+                return null;
             }
         }
 
@@ -760,10 +797,11 @@ namespace ZoningFloorArea.Services
             }
         }
 
-        private List<ElementId> DrawLoopsWithIds(List<CurveLoop> loops, LotElementType elemType, SketchPlane? sketchPlane, GraphicsStyle? lineStyle, string comments)
+        private List<ElementId> DrawLoopsWithIds(List<CurveLoop> loops, LotElementType elemType, SketchPlane sketchPlane, GraphicsStyle lineStyle, string comments)
         {
             var ids = new List<ElementId>();
             View activeView = _doc.ActiveView;
+            ViewPlan vp = activeView as ViewPlan;
 
             foreach (var loop in loops)
             {
@@ -776,22 +814,22 @@ namespace ZoningFloorArea.Services
                         {
                             if (lineStyle != null) try { mc.LineStyle = lineStyle; } catch { }
                             var comm = mc.get_Parameter(BuiltInParameter.ALL_MODEL_INSTANCE_COMMENTS);
-                            comm?.Set(comments);
+                            if (comm != null) comm.Set(comments);
                             ids.Add(mc.Id);
                         }
                     }
-                    else if (elemType == LotElementType.DetailCurves && IsPlanView(activeView))
+                    else if (elemType == LotElementType.DetailLines && IsPlanView(activeView))
                     {
                         DetailCurve dc = _doc.Create.NewDetailCurve(activeView, curve);
                         if (dc != null)
                         {
                             if (lineStyle != null) try { dc.LineStyle = lineStyle; } catch { }
                             var comm = dc.get_Parameter(BuiltInParameter.ALL_MODEL_INSTANCE_COMMENTS);
-                            comm?.Set(comments);
+                            if (comm != null) comm.Set(comments);
                             ids.Add(dc.Id);
                         }
                     }
-                    else if (elemType == LotElementType.AreaBoundaryLines && activeView is ViewPlan vp && activeView.ViewType == ViewType.AreaPlan)
+                    else if (elemType == LotElementType.AreaBoundaryLines && vp != null && activeView.ViewType == ViewType.AreaPlan)
                     {
                         if (sketchPlane != null)
                         {
@@ -843,7 +881,7 @@ namespace ZoningFloorArea.Services
             GetOrCreateLineStyle(STYLE_SIDEWALK_BLUE, new Color(2, 132, 199), 2);
         }
 
-        private GraphicsStyle? ResolveLineStyle(string requestedName, string fallbackPreset, Color fallbackColor, int fallbackWeight)
+        private GraphicsStyle ResolveLineStyle(string requestedName, string fallbackPreset, Color fallbackColor, int fallbackWeight)
         {
             try
             {
@@ -990,13 +1028,13 @@ namespace ZoningFloorArea.Services
                 var pt = rawPoints[i];
                 var transformed = new XYZ(pt.X + offsetX, pt.Y + offsetY, z);
 
-                if (result.Count > 0 && result[^1].DistanceTo(transformed) < tolerance)
+                if (result.Count > 0 && result[result.Count - 1].DistanceTo(transformed) < tolerance)
                     continue;
 
                 result.Add(transformed);
             }
 
-            if (result.Count > 1 && result[0].DistanceTo(result[^1]) < tolerance)
+            if (result.Count > 1 && result[0].DistanceTo(result[result.Count - 1]) < tolerance)
             {
                 result.RemoveAt(result.Count - 1);
             }

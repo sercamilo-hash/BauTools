@@ -167,6 +167,7 @@ namespace ZoningFloorArea.ViewModels
         private readonly RevitViewGeneratorService _viewGenService;
         private readonly RevitSheetPlacementService _sheetPlaceService;
         private readonly ExcelZoningBridgeService _excelBridgeService;
+        private readonly SmartScaleAdvisorService _scaleAdvisor;
 
         public MappingConfig Config { get; set; }
         public ObservableCollection<string> AreaSchemes { get; set; }
@@ -367,6 +368,7 @@ namespace ZoningFloorArea.ViewModels
             _viewGenService = new RevitViewGeneratorService(doc);
             _sheetPlaceService = new RevitSheetPlacementService(doc);
             _excelBridgeService = new ExcelZoningBridgeService();
+            _scaleAdvisor = new SmartScaleAdvisorService();
             _lotData = new ZoningLotData();
             _complianceReport = new ZoningComplianceReport();
 
@@ -448,16 +450,17 @@ namespace ZoningFloorArea.ViewModels
 
                 PackageSettings = new List<PackageSetting>
                 {
-                    new PackageSetting(ViewPackageType.Architectural, "Architectural Plans", "🏛️", "A-", 101),
-                    new PackageSetting(ViewPackageType.CeilingPlanRCP, "Reflected Ceiling (RCP)", "💡", "RCP-", 101),
-                    new PackageSetting(ViewPackageType.GrossArea, "ZFA Gross Area", "📐", "ZFA-", 101),
-                    new PackageSetting(ViewPackageType.Deductions, "ZFA Deductions", "✂️", "DED-", 101),
-                    new PackageSetting(ViewPackageType.EgressLifeSafety, "Egress & Life Safety", "🚨", "LS-", 101)
+                    new PackageSetting(ViewPackageType.MasterOverall, "Master Overall Plans", "🌐", "M-", 101, SheetLayoutMode.Single1View, 192, "1/16\" = 1'-0\" (1:192)"),
+                    new PackageSetting(ViewPackageType.GrossArea, "Gross Area Plans", "📐", "Z-", 101, SheetLayoutMode.Quad4Views, 96, "1/8\" = 1'-0\" (1:96)"),
+                    new PackageSetting(ViewPackageType.Deductions, "Deductions Plans", "✂️", "ZD-", 101, SheetLayoutMode.Quad4Views, 96, "1/8\" = 1'-0\" (1:96)"),
+                    new PackageSetting(ViewPackageType.EgressLifeSafety, "Life Safety Plans", "🚨", "LS-", 101, SheetLayoutMode.Dual2Views, 96, "1/8\" = 1'-0\" (1:96)"),
+                    new PackageSetting(ViewPackageType.CeilingPlanRCP, "Reflected Ceiling (RCP)", "💡", "RCP-", 101, SheetLayoutMode.Quad4Views, 96, "1/8\" = 1'-0\" (1:96)"),
+                    new PackageSetting(ViewPackageType.Architectural, "Floor Plans", "🏛️", "A-", 101, SheetLayoutMode.Dual2Views, 96, "1/8\" = 1'-0\" (1:96)")
                 };
 
                 PlannedSheets = new ObservableCollection<PlannedSheet>();
-                _selectedLayoutMode = SheetLayoutMode.SideBySide2Views;
-                _selectedViewScale = 100;
+                _selectedLayoutMode = SheetLayoutMode.Quad4Views;
+                _selectedViewScale = 96;
                 _onlyTypicalRanges = true;
                 _repositionIfExists = true;
 
@@ -994,14 +997,76 @@ namespace ZoningFloorArea.ViewModels
             if (Buildings == null || Buildings.Count == 0 || PackageSettings == null) return;
 
             List<BuildingDefinition> activeBldgs = Buildings.ToList();
-            int maxPerSheet = (int)SelectedLayoutMode; // 1, 2, or 4
+            bool isMultiBuilding = activeBldgs.Count > 1;
 
             foreach (PackageSetting pkg in PackageSettings)
             {
                 if (!pkg.IsEnabled) continue;
+                if (pkg.PackageType == ViewPackageType.MasterOverall && !isMultiBuilding) continue;
 
+                int maxPerSheet = (int)pkg.LayoutMode; // 1, 2, 3, 4, 6, 8
                 int sheetNumberCounter = pkg.StartNumber;
 
+                // Update Scale Recommendation for this package
+                double refWidth = activeBldgs[0].FootprintWidthFt > 0 ? activeBldgs[0].FootprintWidthFt : 150.0;
+                double refDepth = activeBldgs[0].FootprintDepthFt > 0 ? activeBldgs[0].FootprintDepthFt : 100.0;
+                ScaleOption rec = _scaleAdvisor.RecommendScale(refWidth, refDepth, SelectedTitleblock, pkg.LayoutMode);
+                pkg.RecommendedScaleDisplay = rec.DisplayName;
+
+                // ── CASE A: Master Overall Campus Package ──
+                if (pkg.PackageType == ViewPackageType.MasterOverall)
+                {
+                    List<PlannedViewport> queuedMaster = new List<PlannedViewport>();
+                    HashSet<string> seenLevels = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+
+                    foreach (BuildingDefinition b in activeBldgs)
+                    {
+                        foreach (TypicalFloorGroup g in b.TypicalGroups)
+                        {
+                            string srcLvl = g.IsDuplexModule ? g.SourceLevelNameLower : g.SourceLevelName;
+                            if (string.IsNullOrEmpty(srcLvl) || seenLevels.Contains(srcLvl)) continue;
+                            seenLevels.Add(srcLvl);
+
+                            string rangeLabel = _viewGenService.GetGroupRangeLabel(g);
+                            queuedMaster.Add(new PlannedViewport
+                            {
+                                LevelName = srcLvl,
+                                LevelRangeLabel = rangeLabel,
+                                BuildingName = "Master",
+                                ScopeBoxName = Config.MasterScopeBoxName,
+                                ViewName = string.Format("FL. {0} - MASTER OVERALL FLOOR PLAN", rangeLabel),
+                                FormattedTitleOnSheet = string.Format("MASTER - {0} OVERALL FLOOR PLAN", rangeLabel.ToUpperInvariant()),
+                                PackageType = pkg.PackageType
+                            });
+                        }
+                    }
+
+                    for (int i = 0; i < queuedMaster.Count; i += maxPerSheet)
+                    {
+                        List<PlannedViewport> chunk = queuedMaster.Skip(i).Take(maxPerSheet).ToList();
+                        for (int k = 0; k < chunk.Count; k++) chunk[k].GridIndex = k;
+
+                        string sNum = string.Format("{0}{1}", pkg.SheetPrefix, sheetNumberCounter++);
+                        string sName = chunk.Count == 1 ? string.Format("Master Overall - {0}", chunk[0].LevelName) : "Master Overall Campus Plans";
+
+                        PlannedSheets.Add(new PlannedSheet
+                        {
+                            SheetNumber = sNum,
+                            SheetName = sName,
+                            BuildingName = "Master",
+                            ScopeBoxName = Config.MasterScopeBoxName,
+                            PackageType = pkg.PackageType,
+                            LayoutMode = pkg.LayoutMode,
+                            ScaleValue = pkg.ScaleValue,
+                            ScaleDisplay = pkg.ScaleDisplay,
+                            HasSummaryTable = pkg.IncludeSummaryTableOnSheet,
+                            Viewports = chunk
+                        });
+                    }
+                    continue;
+                }
+
+                // ── CASE B: Building-Specific Packages (Gross, Deductions, Life Safety, RCP, Floor Plans) ──
                 foreach (BuildingDefinition bldg in activeBldgs)
                 {
                     List<PlannedViewport> queuedViewports = new List<PlannedViewport>();
@@ -1012,70 +1077,69 @@ namespace ZoningFloorArea.ViewModels
                         if (string.IsNullOrEmpty(srcLevel)) continue;
 
                         string rangeLabel = _viewGenService.GetGroupRangeLabel(group);
+                        string bldgTag = bldg.Name.ToUpperInvariant();
                         string vName = "";
+                        string titleOnSheet = "";
 
                         switch (pkg.PackageType)
                         {
                             case ViewPackageType.Architectural:
-                                vName = string.Format("FL. {0} - ARCHITECTURAL PLAN ({1})", rangeLabel, bldg.Name.ToUpperInvariant());
+                                vName = string.Format("FL. {0} - ARCHITECTURAL PLAN ({1})", rangeLabel, bldgTag);
+                                titleOnSheet = string.Format("{0} - {1} FLOOR PLAN", bldgTag, rangeLabel.ToUpperInvariant());
                                 break;
                             case ViewPackageType.CeilingPlanRCP:
-                                vName = string.Format("FL. {0} - CEILING PLAN RCP ({1})", rangeLabel, bldg.Name.ToUpperInvariant());
+                                vName = string.Format("FL. {0} - CEILING PLAN RCP ({1})", rangeLabel, bldgTag);
+                                titleOnSheet = string.Format("{0} - {1} REFLECTED CEILING PLAN", bldgTag, rangeLabel.ToUpperInvariant());
                                 break;
                             case ViewPackageType.GrossArea:
-                                vName = string.Format("FL. {0} - GROSS AREA PLAN ({1})", rangeLabel, bldg.Name.ToUpperInvariant());
+                                vName = string.Format("FL. {0} - GROSS AREA PLAN ({1})", rangeLabel, bldgTag);
+                                titleOnSheet = string.Format("{0} - {1} GROSS AREA PLAN", bldgTag, rangeLabel.ToUpperInvariant());
                                 break;
                             case ViewPackageType.Deductions:
-                                vName = string.Format("FL. {0} - DEDUCTIONS PLAN ({1})", rangeLabel, bldg.Name.ToUpperInvariant());
+                                vName = string.Format("FL. {0} - DEDUCTIONS PLAN ({1})", rangeLabel, bldgTag);
+                                titleOnSheet = string.Format("{0} - {1} DEDUCTIONS PLAN", bldgTag, rangeLabel.ToUpperInvariant());
                                 break;
                             case ViewPackageType.EgressLifeSafety:
-                                vName = string.Format("FL. {0} - EGRESS & LIFE SAFETY ({1})", rangeLabel, bldg.Name.ToUpperInvariant());
+                                vName = string.Format("FL. {0} - LIFE SAFETY PLAN ({1})", rangeLabel, bldgTag);
+                                titleOnSheet = string.Format("{0} - {1} LIFE SAFETY PLAN", bldgTag, rangeLabel.ToUpperInvariant());
                                 break;
                         }
 
-                        PlannedViewport vp = new PlannedViewport
+                        queuedViewports.Add(new PlannedViewport
                         {
                             LevelName = srcLevel,
+                            LevelRangeLabel = rangeLabel,
                             BuildingName = bldg.Name,
+                            ScopeBoxName = bldg.ScopeBoxName,
                             ViewName = vName,
+                            FormattedTitleOnSheet = titleOnSheet,
                             PackageType = pkg.PackageType
-                        };
-                        queuedViewports.Add(vp);
+                        });
                     }
 
-                    // Batch queued viewports into PlannedSheet objects
                     for (int i = 0; i < queuedViewports.Count; i += maxPerSheet)
                     {
                         List<PlannedViewport> chunk = queuedViewports.Skip(i).Take(maxPerSheet).ToList();
-                        for (int k = 0; k < chunk.Count; k++)
-                        {
-                            chunk[k].GridIndex = k;
-                        }
+                        for (int k = 0; k < chunk.Count; k++) chunk[k].GridIndex = k;
 
-                        string sNum = string.Format("{0}{1}", pkg.SheetPrefix, sheetNumberCounter);
-                        sheetNumberCounter++;
+                        string sNum = string.Format("{0}{1}", pkg.SheetPrefix, sheetNumberCounter++);
+                        string sName = chunk.Count == 1 ?
+                            string.Format("{0} - {1} ({2})", bldg.Name, pkg.DisplayName, chunk[0].LevelName) :
+                            string.Format("{0} - {1} (Typical Floors)", bldg.Name, pkg.DisplayName);
 
-                        string sName = "";
-                        if (chunk.Count == 1)
-                        {
-                            sName = string.Format("{0} - {1} ({2})", bldg.Name, pkg.DisplayName, chunk[0].LevelName);
-                        }
-                        else
-                        {
-                            sName = string.Format("{0} - {1} (Typical Floors)", bldg.Name, pkg.DisplayName);
-                        }
-
-                        PlannedSheet ps = new PlannedSheet
+                        PlannedSheets.Add(new PlannedSheet
                         {
                             SheetNumber = sNum,
                             SheetName = sName,
                             BuildingName = bldg.Name,
+                            ScopeBoxName = bldg.ScopeBoxName,
                             PackageType = pkg.PackageType,
-                            LayoutMode = SelectedLayoutMode,
+                            LayoutMode = pkg.LayoutMode,
+                            ScaleValue = pkg.ScaleValue,
+                            ScaleDisplay = pkg.ScaleDisplay,
+                            HasSummaryTable = pkg.IncludeSummaryTableOnSheet,
                             Viewports = chunk
-                        };
-
-                        PlannedSheets.Add(ps);
+                        });
                     }
                 }
             }
@@ -1102,12 +1166,13 @@ namespace ZoningFloorArea.ViewModels
                     SelectedViewScale,
                     OnlyTypicalRanges);
 
-                // 2. Compose sheets and place viewports
+                // 2. Compose sheets and place viewports with Titleblock bounds
                 int placedCount = _sheetPlaceService.ComposePlannedSheets(
                     PlannedSheets.ToList(),
                     tbId,
                     RepositionIfExists,
-                    createdViews);
+                    createdViews,
+                    SelectedTitleblock);
 
                 // Refresh project sheets
                 AvailableSheets.Clear();

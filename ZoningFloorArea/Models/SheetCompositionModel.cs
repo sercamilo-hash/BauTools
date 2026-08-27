@@ -6,24 +6,40 @@ namespace ZoningFloorArea.Models
 {
     public enum SheetLayoutMode
     {
-        SingleView = 1,
-        SideBySide2Views = 2,
-        Matrix4Views = 4
+        Single1View = 1,
+        Dual2Views = 2,
+        Triple3Views = 3,
+        Quad4Views = 4,
+        Hex6Views = 6,
+        Octo8Views = 8
     }
 
     public enum ViewPackageType
     {
-        Architectural = 0,
-        CeilingPlanRCP = 1,
-        GrossArea = 2,
-        Deductions = 3,
-        EgressLifeSafety = 4
+        MasterOverall = 0,
+        Architectural = 1,
+        CeilingPlanRCP = 2,
+        GrossArea = 3,
+        Deductions = 4,
+        EgressLifeSafety = 5
     }
 
     public class TitleblockItem
     {
         public string Name { get; set; }
         public ElementId FamilySymbolId { get; set; }
+        public double WidthInches { get; set; }
+        public double HeightInches { get; set; }
+        public double UsableWidthInches { get; set; }
+        public double UsableHeightInches { get; set; }
+
+        public TitleblockItem()
+        {
+            WidthInches = 36.0;
+            HeightInches = 24.0;
+            UsableWidthInches = 31.0;
+            UsableHeightInches = 22.0;
+        }
 
         public override string ToString()
         {
@@ -52,8 +68,13 @@ namespace ZoningFloorArea.Models
         public int StartNumber { get; set; }
         public string ViewTemplateName { get; set; }
         public ElementId SelectedTemplateId { get; set; }
+        public SheetLayoutMode LayoutMode { get; set; }
+        public int ScaleValue { get; set; }
+        public string ScaleDisplay { get; set; }
+        public string RecommendedScaleDisplay { get; set; }
+        public bool IncludeSummaryTableOnSheet { get; set; }
 
-        public PackageSetting(ViewPackageType type, string name, string icon, string prefix, int startNum)
+        public PackageSetting(ViewPackageType type, string name, string icon, string prefix, int startNum, SheetLayoutMode defaultLayout, int defaultScale, string scaleDisp)
         {
             PackageType = type;
             DisplayName = name;
@@ -63,17 +84,31 @@ namespace ZoningFloorArea.Models
             StartNumber = startNum;
             ViewTemplateName = "(None)";
             SelectedTemplateId = ElementId.InvalidElementId;
+            LayoutMode = defaultLayout;
+            ScaleValue = defaultScale;
+            ScaleDisplay = scaleDisp;
+            RecommendedScaleDisplay = scaleDisp;
+            IncludeSummaryTableOnSheet = (type == ViewPackageType.GrossArea || type == ViewPackageType.Deductions);
         }
     }
 
     public class PlannedViewport
     {
         public string LevelName { get; set; }
+        public string LevelRangeLabel { get; set; }
         public string BuildingName { get; set; }
+        public string ScopeBoxName { get; set; }
         public string ViewName { get; set; }
+        public string FormattedTitleOnSheet { get; set; }
         public ViewPackageType PackageType { get; set; }
-        public int GridIndex { get; set; } // 0, 1, 2, 3
+        public int GridIndex { get; set; } // 0 to 7
         public ElementId ExistingViewId { get; set; }
+
+        public PlannedViewport()
+        {
+            GridIndex = 0;
+            ExistingViewId = ElementId.InvalidElementId;
+        }
     }
 
     public class PlannedSheet
@@ -81,20 +116,28 @@ namespace ZoningFloorArea.Models
         public string SheetNumber { get; set; }
         public string SheetName { get; set; }
         public string BuildingName { get; set; }
+        public string ScopeBoxName { get; set; }
         public ViewPackageType PackageType { get; set; }
         public SheetLayoutMode LayoutMode { get; set; }
+        public int ScaleValue { get; set; }
+        public string ScaleDisplay { get; set; }
+        public bool HasSummaryTable { get; set; }
         public List<PlannedViewport> Viewports { get; set; }
 
         public PlannedSheet()
         {
             Viewports = new List<PlannedViewport>();
+            LayoutMode = SheetLayoutMode.Quad4Views;
+            ScaleValue = 96;
+            ScaleDisplay = "1/8\" = 1'-0\"";
+            HasSummaryTable = false;
         }
 
         public string Summary
         {
             get
             {
-                return string.Format("{0} - {1} ({2} View(s))", SheetNumber, SheetName, Viewports.Count);
+                return string.Format("{0} - {1} ({2} View(s) @ {3})", SheetNumber, SheetName, Viewports.Count, ScaleDisplay);
             }
         }
     }

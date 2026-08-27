@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.Collections.Generic;
 using System.Linq;
 using Autodesk.Revit.DB;
@@ -44,10 +44,35 @@ namespace ZoningFloorArea.Services
                         string fn = sym.FamilyName;
                         string sn = sym.Name;
                         string disp = string.IsNullOrEmpty(sn) || sn == fn ? fn : string.Format("{0} - {1}", fn, sn);
+
+                        double wIn = 36.0;
+                        double hIn = 24.0;
+
+                        if (disp.IndexOf("30x42", StringComparison.OrdinalIgnoreCase) >= 0 || disp.IndexOf("42x30", StringComparison.OrdinalIgnoreCase) >= 0 || disp.IndexOf("Arch E", StringComparison.OrdinalIgnoreCase) >= 0)
+                        {
+                            wIn = 42.0; hIn = 30.0;
+                        }
+                        else if (disp.IndexOf("36x24", StringComparison.OrdinalIgnoreCase) >= 0 || disp.IndexOf("24x36", StringComparison.OrdinalIgnoreCase) >= 0 || disp.IndexOf("Arch D", StringComparison.OrdinalIgnoreCase) >= 0)
+                        {
+                            wIn = 36.0; hIn = 24.0;
+                        }
+                        else if (disp.IndexOf("A0", StringComparison.OrdinalIgnoreCase) >= 0)
+                        {
+                            wIn = 46.8; hIn = 33.1;
+                        }
+                        else if (disp.IndexOf("A1", StringComparison.OrdinalIgnoreCase) >= 0)
+                        {
+                            wIn = 33.1; hIn = 23.4;
+                        }
+
                         list.Add(new TitleblockItem
                         {
                             Name = disp,
-                            FamilySymbolId = sym.Id
+                            FamilySymbolId = sym.Id,
+                            WidthInches = wIn,
+                            HeightInches = hIn,
+                            UsableWidthInches = wIn - 4.5, // Minus title block sidebar / border
+                            UsableHeightInches = hIn - 2.0
                         });
                     }
                 }
@@ -55,6 +80,12 @@ namespace ZoningFloorArea.Services
             catch
             {
             }
+
+            if (list.Count == 0)
+            {
+                list.Add(new TitleblockItem { Name = "Standard 36\" x 24\" (Arch D)" });
+            }
+
             return list.OrderBy(t => t.Name).ToList();
         }
 
@@ -114,34 +145,54 @@ namespace ZoningFloorArea.Services
             return list.OrderBy(s => s.SheetNumber).ToList();
         }
 
-        public XYZ GetViewportCenter(SheetLayoutMode mode, int gridIndex)
+        public XYZ GetViewportCenter(SheetLayoutMode mode, int gridIndex, TitleblockItem tb)
         {
-            // Standard Sheet coordinate math (in feet on titleblock)
+            double wFt = (tb != null ? tb.WidthInches : 36.0) / 12.0;
+            double hFt = (tb != null ? tb.HeightInches : 24.0) / 12.0;
+
+            // Usable drawing area left margin and bottom margin in feet
+            double startX = 0.35; // Left margin
+            double usableW = wFt - 0.70; // Right title block sidebar buffer
+            double usableH = hFt - 0.35;
+
+            int rows = 1;
+            int cols = 1;
+
             switch (mode)
             {
-                case SheetLayoutMode.SingleView:
-                    return new XYZ(1.6, 1.3, 0);
-
-                case SheetLayoutMode.SideBySide2Views:
-                    if (gridIndex == 0) return new XYZ(0.85, 1.3, 0); // Left plan
-                    return new XYZ(2.35, 1.3, 0); // Right plan
-
-                case SheetLayoutMode.Matrix4Views:
-                    if (gridIndex == 0) return new XYZ(0.85, 1.9, 0); // Top-Left
-                    if (gridIndex == 1) return new XYZ(2.35, 1.9, 0); // Top-Right
-                    if (gridIndex == 2) return new XYZ(0.85, 0.8, 0); // Bottom-Left
-                    return new XYZ(2.35, 0.8, 0); // Bottom-Right
-
-                default:
-                    return new XYZ(1.5, 1.5, 0);
+                case SheetLayoutMode.Single1View:
+                    rows = 1; cols = 1; break;
+                case SheetLayoutMode.Dual2Views:
+                    rows = 1; cols = 2; break;
+                case SheetLayoutMode.Triple3Views:
+                    rows = 1; cols = 3; break;
+                case SheetLayoutMode.Quad4Views:
+                    rows = 2; cols = 2; break;
+                case SheetLayoutMode.Hex6Views:
+                    rows = 2; cols = 3; break;
+                case SheetLayoutMode.Octo8Views:
+                    rows = 2; cols = 4; break;
             }
+
+            int colIdx = gridIndex % cols;
+            int rowIdx = gridIndex / cols;
+
+            double cellW = usableW / cols;
+            double cellH = usableH / rows;
+
+            double centerX = startX + (colIdx * cellW) + (cellW / 2.0);
+            // Revit Sheet Y=0 is at bottom, so row 0 is top row
+            double centerY = (usableH - (rowIdx * cellH)) - (cellH / 2.0);
+
+            return new XYZ(centerX, centerY, 0);
         }
 
         public int ComposePlannedSheets(
             List<PlannedSheet> plannedSheets,
             ElementId titleblockId,
             bool repositionIfExists,
-            Dictionary<string, ElementId> createdViewsByName)
+            Dictionary<string, ElementId> createdViewsByName,
+            TitleblockItem titleblockItem)
         {
             if (plannedSheets == null || plannedSheets.Count == 0) return 0;
 
@@ -153,13 +204,8 @@ namespace ZoningFloorArea.Services
 
                 foreach (PlannedSheet ps in plannedSheets)
                 {
-                    ViewSheet sheet = FindExistingSheetByNumber(ps.SheetNumber);
-                    if (sheet == null)
-                    {
-                        sheet = ViewSheet.Create(_doc, titleblockId != ElementId.InvalidElementId ? titleblockId : ElementId.InvalidElementId);
-                        sheet.SheetNumber = ps.SheetNumber;
-                        sheet.Name = ps.SheetName;
-                    }
+                    ViewSheet sheet = GetOrCreateSheet(ps.SheetNumber, ps.SheetName, titleblockId);
+                    if (sheet == null) continue;
 
                     for (int i = 0; i < ps.Viewports.Count; i++)
                     {
@@ -174,40 +220,37 @@ namespace ZoningFloorArea.Services
                         {
                             viewId = vp.ExistingViewId;
                         }
-                        else
-                        {
-                            View found = FindViewByName(vp.ViewName);
-                            if (found != null) viewId = found.Id;
-                        }
 
                         if (viewId == ElementId.InvalidElementId) continue;
 
-                        XYZ pos = GetViewportCenter(ps.LayoutMode, vp.GridIndex);
+                        XYZ slotCenter = GetViewportCenter(ps.LayoutMode, vp.GridIndex, titleblockItem);
 
-                        try
+                        // Check if viewport already placed on this sheet
+                        Viewport existingVp = GetViewportForViewOnSheet(sheet, viewId);
+
+                        if (existingVp != null)
+                        {
+                            if (repositionIfExists)
+                            {
+                                try
+                                {
+                                    existingVp.SetBoxCenter(slotCenter);
+                                    placedViewCount++;
+                                }
+                                catch { }
+                            }
+                        }
+                        else
                         {
                             if (Viewport.CanAddViewToSheet(_doc, sheet.Id, viewId))
                             {
-                                Viewport newVp = Viewport.Create(_doc, sheet.Id, viewId, pos);
-                                if (newVp != null) placedViewCount++;
-                            }
-                            else if (repositionIfExists)
-                            {
-                                // Check if viewport already exists on this sheet
-                                foreach (ElementId existingVpId in sheet.GetAllViewports())
+                                try
                                 {
-                                    Viewport exVp = _doc.GetElement(existingVpId) as Viewport;
-                                    if (exVp != null && exVp.ViewId == viewId)
-                                    {
-                                        exVp.SetBoxCenter(pos);
-                                        placedViewCount++;
-                                        break;
-                                    }
+                                    Viewport newVp = Viewport.Create(_doc, sheet.Id, viewId, slotCenter);
+                                    placedViewCount++;
                                 }
+                                catch { }
                             }
-                        }
-                        catch
-                        {
                         }
                     }
                 }
@@ -220,67 +263,73 @@ namespace ZoningFloorArea.Services
 
         public int PlaceViewsOnSheet(ElementId sheetId, List<ElementId> viewIds)
         {
-            if (sheetId == ElementId.InvalidElementId || viewIds == null || viewIds.Count == 0)
-                return 0;
-
+            if (sheetId == ElementId.InvalidElementId || viewIds == null || viewIds.Count == 0) return 0;
             ViewSheet sheet = _doc.GetElement(sheetId) as ViewSheet;
             if (sheet == null) return 0;
 
-            int placedCount = 0;
-
+            int count = 0;
             using (Transaction tx = new Transaction(_doc, "BauTools: Place Views on Sheet"))
             {
                 tx.Start();
-
-                double startX = 1.2;
-                double startY = 1.2;
-                double spacingX = 1.2;
-                int col = 0;
-
+                XYZ center = new XYZ(1.5, 1.5, 0);
                 foreach (ElementId vId in viewIds)
                 {
-                    try
+                    if (Viewport.CanAddViewToSheet(_doc, sheet.Id, vId))
                     {
-                        if (Viewport.CanAddViewToSheet(_doc, sheet.Id, vId))
+                        try
                         {
-                            XYZ location = new XYZ(startX + (col * spacingX), startY, 0);
-                            Viewport vp = Viewport.Create(_doc, sheet.Id, vId, location);
-                            if (vp != null)
-                            {
-                                placedCount++;
-                                col++;
-                            }
+                            Viewport.Create(_doc, sheet.Id, vId, center);
+                            count++;
                         }
-                    }
-                    catch
-                    {
+                        catch { }
                     }
                 }
-
                 tx.Commit();
             }
-
-            return placedCount;
+            return count;
         }
 
-        private ViewSheet FindExistingSheetByNumber(string sheetNumber)
+        private ViewSheet GetOrCreateSheet(string sheetNumber, string sheetName, ElementId titleblockId)
         {
-            FilteredElementCollector collector = new FilteredElementCollector(_doc).OfClass(typeof(ViewSheet));
-            foreach (ViewSheet vs in collector.Cast<ViewSheet>())
+            ViewSheet existing = new FilteredElementCollector(_doc)
+                .OfClass(typeof(ViewSheet))
+                .Cast<ViewSheet>()
+                .FirstOrDefault(s => string.Equals(s.SheetNumber, sheetNumber, StringComparison.OrdinalIgnoreCase));
+
+            if (existing != null)
             {
-                if (string.Equals(vs.SheetNumber, sheetNumber, StringComparison.OrdinalIgnoreCase))
-                    return vs;
+                if (!string.IsNullOrEmpty(sheetName))
+                {
+                    try { existing.Name = sheetName; } catch { }
+                }
+                return existing;
             }
-            return null;
+
+            try
+            {
+                ViewSheet newSheet = ViewSheet.Create(_doc, titleblockId);
+                newSheet.SheetNumber = sheetNumber;
+                newSheet.Name = sheetName;
+                return newSheet;
+            }
+            catch
+            {
+                return null;
+            }
         }
 
-        private View FindViewByName(string viewName)
+        private Viewport GetViewportForViewOnSheet(ViewSheet sheet, ElementId viewId)
         {
-            FilteredElementCollector collector = new FilteredElementCollector(_doc).OfClass(typeof(View));
-            foreach (View v in collector.Cast<View>())
+            if (sheet == null || viewId == ElementId.InvalidElementId) return null;
+
+            ICollection<ElementId> vpIds = sheet.GetAllViewports();
+            foreach (ElementId vId in vpIds)
             {
-                if (string.Equals(v.Name, viewName, StringComparison.OrdinalIgnoreCase))
-                    return v;
+                Viewport vp = _doc.GetElement(vId) as Viewport;
+                if (vp != null && vp.ViewId == viewId)
+                {
+                    return vp;
+                }
             }
             return null;
         }

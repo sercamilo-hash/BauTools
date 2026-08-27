@@ -2110,19 +2110,60 @@ namespace ZoningFloorArea.Views
             ScrollViewer scroll = new ScrollViewer { VerticalScrollBarVisibility = ScrollBarVisibility.Auto };
             StackPanel formStack = new StackPanel();
 
-            // 1. View Packages Section
+            // 1. Titleblock Selection & Workspace Bar
+            Border tbBox = new Border
+            {
+                Background = new SolidColorBrush((WpfColor)ColorConverter.ConvertFromString("#EFF6FF")),
+                BorderBrush = new SolidColorBrush((WpfColor)ColorConverter.ConvertFromString("#BFDBFE")),
+                BorderThickness = new Thickness(1),
+                CornerRadius = new CornerRadius(6),
+                Padding = new Thickness(10, 8, 10, 8),
+                Margin = new Thickness(0, 0, 0, 10)
+            };
+            StackPanel tbStack = new StackPanel();
+            tbStack.Children.Add(new WpfTextBlock
+            {
+                Text = "📐 PROJECT TITLEBLOCK & DRAWING WORKSPACE:",
+                FontSize = 10,
+                FontWeight = FontWeights.Bold,
+                Foreground = new SolidColorBrush((WpfColor)ColorConverter.ConvertFromString("#1E40AF")),
+                Margin = new Thickness(0, 0, 0, 4)
+            });
+
+            WpfComboBox comboTb = new WpfComboBox
+            {
+                Height = 28,
+                ItemsSource = _vm.AvailableTitleblocks,
+                DisplayMemberPath = "Name",
+                SelectedItem = _vm.SelectedTitleblock
+            };
+            comboTb.SelectionChanged += (s, e) =>
+            {
+                _vm.SelectedTitleblock = comboTb.SelectedItem as TitleblockItem;
+                RefreshStep4PreviewUI();
+            };
+            tbStack.Children.Add(comboTb);
+            tbBox.Child = tbStack;
+            formStack.Children.Add(tbBox);
+
+            // 2. View Packages Section with 1 to 8 Matrix Grid
             formStack.Children.Add(new WpfTextBlock
             {
-                Text = "ARCHITECTURAL PACKAGES TO DIAGRAM:",
+                Text = "CONFIGURACION INDEPENDIENTE POR PAQUETE DE PLANOS:",
                 FontSize = 11,
                 FontWeight = FontWeights.Bold,
                 Foreground = new SolidColorBrush(COL_TEXT_MUTED),
-                Margin = new Thickness(0, 0, 0, 8)
+                Margin = new Thickness(0, 4, 0, 8)
             });
 
             foreach (PackageSetting pkg in _vm.PackageSettings)
             {
                 PackageSetting currentPkg = pkg;
+
+                // Hide Master package if only 1 building
+                if (currentPkg.PackageType == ViewPackageType.MasterOverall && _vm.Buildings.Count <= 1)
+                    continue;
+
                 Border pBox = new Border
                 {
                     Background = new SolidColorBrush(COL_SURFACE),
@@ -2130,15 +2171,16 @@ namespace ZoningFloorArea.Views
                     BorderThickness = new Thickness(1),
                     CornerRadius = new CornerRadius(6),
                     Padding = new Thickness(10, 8, 10, 8),
-                    Margin = new Thickness(0, 0, 0, 6)
+                    Margin = new Thickness(0, 0, 0, 8)
                 };
 
-                WpfGrid pGrid = new WpfGrid();
-                pGrid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1.4, GridUnitType.Star) }); // Checkbox & Title
-                pGrid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(80) }); // Prefix
-                pGrid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1.2, GridUnitType.Star) }); // View Template
+                StackPanel pCardStack = new StackPanel();
 
-                // Checkbox & Title
+                // Row 1: Checkbox & Name + Prefix
+                WpfGrid r1Grid = new WpfGrid { Margin = new Thickness(0, 0, 0, 6) };
+                r1Grid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
+                r1Grid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(70) });
+
                 WpfCheckBox chk = new WpfCheckBox
                 {
                     Content = string.Format("{0} {1}", currentPkg.Icon, currentPkg.DisplayName),
@@ -2149,24 +2191,75 @@ namespace ZoningFloorArea.Views
                 chk.Checked += (s, e) => { currentPkg.IsEnabled = true; RefreshStep4PreviewUI(); };
                 chk.Unchecked += (s, e) => { currentPkg.IsEnabled = false; RefreshStep4PreviewUI(); };
                 WpfGrid.SetColumn(chk, 0);
-                pGrid.Children.Add(chk);
+                r1Grid.Children.Add(chk);
 
-                // Prefix Input
-                StackPanel pfxStack = new StackPanel { Margin = new Thickness(6, 0, 6, 0) };
-                pfxStack.Children.Add(new WpfTextBlock { Text = "Prefix:", FontSize = 9, Foreground = new SolidColorBrush(COL_TEXT_MUTED) });
-                WpfTextBox txtPfx = new WpfTextBox { Text = currentPkg.SheetPrefix, Height = 24, FontSize = 11, VerticalContentAlignment = VerticalAlignment.Center };
+                WpfTextBox txtPfx = new WpfTextBox
+                {
+                    Text = currentPkg.SheetPrefix,
+                    Height = 24,
+                    FontSize = 11,
+                    VerticalContentAlignment = VerticalAlignment.Center,
+                    ToolTip = "Sheet Number Prefix (e.g. Z-, ZD-, LS-, RCP-, M-)"
+                };
                 txtPfx.TextChanged += (s, e) => { currentPkg.SheetPrefix = txtPfx.Text; RefreshStep4PreviewUI(); };
-                pfxStack.Children.Add(txtPfx);
-                WpfGrid.SetColumn(pfxStack, 1);
-                pGrid.Children.Add(pfxStack);
+                WpfGrid.SetColumn(txtPfx, 1);
+                r1Grid.Children.Add(txtPfx);
+                pCardStack.Children.Add(r1Grid);
+
+                // Row 2: Matrix Layout (1 to 8) + View Template + Scale
+                WpfGrid r2Grid = new WpfGrid();
+                r2Grid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1.1, GridUnitType.Star) }); // Matrix
+                r2Grid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(6) });
+                r2Grid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1.3, GridUnitType.Star) }); // Template
+                r2Grid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(6) });
+                r2Grid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1.1, GridUnitType.Star) }); // Scale
+
+                // Matrix Combo (1 to 8 plans per sheet)
+                StackPanel mxStack = new StackPanel();
+                mxStack.Children.Add(new WpfTextBlock { Text = "Grid Matrix:", FontSize = 8.5, Foreground = new SolidColorBrush(COL_TEXT_MUTED) });
+                WpfComboBox comboMatrix = new WpfComboBox { Height = 24, FontSize = 10 };
+                comboMatrix.Items.Add("1 Plan / Sheet (1x1)");
+                comboMatrix.Items.Add("2 Plans (1x2)");
+                comboMatrix.Items.Add("3 Plans (1x3)");
+                comboMatrix.Items.Add("4 Plans (2x2 Matrix)");
+                comboMatrix.Items.Add("6 Plans (2x3 Matrix)");
+                comboMatrix.Items.Add("8 Plans (2x4 Matrix)");
+
+                switch (currentPkg.LayoutMode)
+                {
+                    case SheetLayoutMode.Single1View: comboMatrix.SelectedIndex = 0; break;
+                    case SheetLayoutMode.Dual2Views: comboMatrix.SelectedIndex = 1; break;
+                    case SheetLayoutMode.Triple3Views: comboMatrix.SelectedIndex = 2; break;
+                    case SheetLayoutMode.Quad4Views: comboMatrix.SelectedIndex = 3; break;
+                    case SheetLayoutMode.Hex6Views: comboMatrix.SelectedIndex = 4; break;
+                    case SheetLayoutMode.Octo8Views: comboMatrix.SelectedIndex = 5; break;
+                    default: comboMatrix.SelectedIndex = 3; break;
+                }
+
+                comboMatrix.SelectionChanged += (s, e) =>
+                {
+                    switch (comboMatrix.SelectedIndex)
+                    {
+                        case 0: currentPkg.LayoutMode = SheetLayoutMode.Single1View; break;
+                        case 1: currentPkg.LayoutMode = SheetLayoutMode.Dual2Views; break;
+                        case 2: currentPkg.LayoutMode = SheetLayoutMode.Triple3Views; break;
+                        case 3: currentPkg.LayoutMode = SheetLayoutMode.Quad4Views; break;
+                        case 4: currentPkg.LayoutMode = SheetLayoutMode.Hex6Views; break;
+                        case 5: currentPkg.LayoutMode = SheetLayoutMode.Octo8Views; break;
+                    }
+                    RefreshStep4PreviewUI();
+                };
+                mxStack.Children.Add(comboMatrix);
+                WpfGrid.SetColumn(mxStack, 0);
+                r2Grid.Children.Add(mxStack);
 
                 // View Template Dropdown
                 StackPanel vtStack = new StackPanel();
-                vtStack.Children.Add(new WpfTextBlock { Text = "View Template:", FontSize = 9, Foreground = new SolidColorBrush(COL_TEXT_MUTED) });
+                vtStack.Children.Add(new WpfTextBlock { Text = "View Template:", FontSize = 8.5, Foreground = new SolidColorBrush(COL_TEXT_MUTED) });
                 WpfComboBox comboVt = new WpfComboBox
                 {
                     Height = 24,
-                    FontSize = 10.5,
+                    FontSize = 10,
                     ItemsSource = _vm.AvailableViewTemplates,
                     DisplayMemberPath = "Name",
                     SelectedIndex = 0
@@ -2178,111 +2271,63 @@ namespace ZoningFloorArea.Views
                 };
                 vtStack.Children.Add(comboVt);
                 WpfGrid.SetColumn(vtStack, 2);
-                pGrid.Children.Add(vtStack);
+                r2Grid.Children.Add(vtStack);
 
-                pBox.Child = pGrid;
+                // Scale Dropdown
+                StackPanel scStack = new StackPanel();
+                scStack.Children.Add(new WpfTextBlock { Text = "Escala:", FontSize = 8.5, Foreground = new SolidColorBrush(COL_TEXT_MUTED) });
+                WpfComboBox comboSc = new WpfComboBox { Height = 24, FontSize = 10 };
+                comboSc.Items.Add("1/4\" (1:48)");
+                comboSc.Items.Add("3/16\" (1:64)");
+                comboSc.Items.Add("1/8\" (1:96)");
+                comboSc.Items.Add("3/32\" (1:128)");
+                comboSc.Items.Add("1/16\" (1:192)");
+                comboSc.Items.Add("1:50 Metric");
+                comboSc.Items.Add("1:100 Metric");
+                comboSc.Items.Add("1:200 Metric");
+
+                if (currentPkg.ScaleValue == 48) comboSc.SelectedIndex = 0;
+                else if (currentPkg.ScaleValue == 64) comboSc.SelectedIndex = 1;
+                else if (currentPkg.ScaleValue == 96) comboSc.SelectedIndex = 2;
+                else if (currentPkg.ScaleValue == 128) comboSc.SelectedIndex = 3;
+                else if (currentPkg.ScaleValue == 192) comboSc.SelectedIndex = 4;
+                else if (currentPkg.ScaleValue == 50) comboSc.SelectedIndex = 5;
+                else if (currentPkg.ScaleValue == 100) comboSc.SelectedIndex = 6;
+                else if (currentPkg.ScaleValue == 200) comboSc.SelectedIndex = 7;
+                else comboSc.SelectedIndex = 2;
+
+                comboSc.SelectionChanged += (s, e) =>
+                {
+                    switch (comboSc.SelectedIndex)
+                    {
+                        case 0: currentPkg.ScaleValue = 48; currentPkg.ScaleDisplay = "1/4\" = 1'-0\""; break;
+                        case 1: currentPkg.ScaleValue = 64; currentPkg.ScaleDisplay = "3/16\" = 1'-0\""; break;
+                        case 2: currentPkg.ScaleValue = 96; currentPkg.ScaleDisplay = "1/8\" = 1'-0\""; break;
+                        case 3: currentPkg.ScaleValue = 128; currentPkg.ScaleDisplay = "3/32\" = 1'-0\""; break;
+                        case 4: currentPkg.ScaleValue = 192; currentPkg.ScaleDisplay = "1/16\" = 1'-0\""; break;
+                        case 5: currentPkg.ScaleValue = 50; currentPkg.ScaleDisplay = "1:50 Metric"; break;
+                        case 6: currentPkg.ScaleValue = 100; currentPkg.ScaleDisplay = "1:100 Metric"; break;
+                        case 7: currentPkg.ScaleValue = 200; currentPkg.ScaleDisplay = "1:200 Metric"; break;
+                    }
+                    RefreshStep4PreviewUI();
+                };
+                scStack.Children.Add(comboSc);
+                WpfGrid.SetColumn(scStack, 4);
+                r2Grid.Children.Add(scStack);
+
+                pCardStack.Children.Add(r2Grid);
+                pBox.Child = pCardStack;
                 formStack.Children.Add(pBox);
             }
 
-            // 2. Diagramming & Sheet Layout Mode
-            formStack.Children.Add(new WpfTextBlock
-            {
-                Text = "SHEET LAYOUT & MULTI-VIEW DIAGRAMMING:",
-                FontSize = 11,
-                FontWeight = FontWeights.Bold,
-                Foreground = new SolidColorBrush(COL_TEXT_MUTED),
-                Margin = new Thickness(0, 14, 0, 8)
-            });
-
-            WpfGrid layoutBtnGrid = new WpfGrid { Margin = new Thickness(0, 0, 0, 12) };
-            layoutBtnGrid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
-            layoutBtnGrid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(8) });
-            layoutBtnGrid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
-            layoutBtnGrid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(8) });
-            layoutBtnGrid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
-
-            WpfButton btn1 = CreateNeutralButton("1 Plan / Sheet");
-            WpfButton btn2 = CreateNeutralButton("2 Plans (Side-by-Side)");
-            WpfButton btn4 = CreateNeutralButton("4 Plans (2x2 Grid)");
-            btn1.Height = 32; btn2.Height = 32; btn4.Height = 32;
-
-            Action updateLayoutBtns = () =>
-            {
-                btn1.Background = _vm.SelectedLayoutMode == SheetLayoutMode.SingleView ? new SolidColorBrush(COL_PRIMARY) : new SolidColorBrush(COL_BTN_NEUTRAL);
-                btn1.Foreground = _vm.SelectedLayoutMode == SheetLayoutMode.SingleView ? WpfBrushes.White : new SolidColorBrush(COL_TEXT_MAIN);
-
-                btn2.Background = _vm.SelectedLayoutMode == SheetLayoutMode.SideBySide2Views ? new SolidColorBrush(COL_PRIMARY) : new SolidColorBrush(COL_BTN_NEUTRAL);
-                btn2.Foreground = _vm.SelectedLayoutMode == SheetLayoutMode.SideBySide2Views ? WpfBrushes.White : new SolidColorBrush(COL_TEXT_MAIN);
-
-                btn4.Background = _vm.SelectedLayoutMode == SheetLayoutMode.Matrix4Views ? new SolidColorBrush(COL_PRIMARY) : new SolidColorBrush(COL_BTN_NEUTRAL);
-                btn4.Foreground = _vm.SelectedLayoutMode == SheetLayoutMode.Matrix4Views ? WpfBrushes.White : new SolidColorBrush(COL_TEXT_MAIN);
-            };
-
-            btn1.Click += (s, e) => { _vm.SelectedLayoutMode = SheetLayoutMode.SingleView; updateLayoutBtns(); RefreshStep4PreviewUI(); };
-            btn2.Click += (s, e) => { _vm.SelectedLayoutMode = SheetLayoutMode.SideBySide2Views; updateLayoutBtns(); RefreshStep4PreviewUI(); };
-            btn4.Click += (s, e) => { _vm.SelectedLayoutMode = SheetLayoutMode.Matrix4Views; updateLayoutBtns(); RefreshStep4PreviewUI(); };
-            updateLayoutBtns();
-
-            WpfGrid.SetColumn(btn1, 0);
-            WpfGrid.SetColumn(btn2, 2);
-            WpfGrid.SetColumn(btn4, 4);
-            layoutBtnGrid.Children.Add(btn1);
-            layoutBtnGrid.Children.Add(btn2);
-            layoutBtnGrid.Children.Add(btn4);
-            formStack.Children.Add(layoutBtnGrid);
-
-            // Titleblock & Scale Settings Row
-            WpfGrid tbScaleGrid = new WpfGrid { Margin = new Thickness(0, 0, 0, 10) };
-            tbScaleGrid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1.4, GridUnitType.Star) });
-            tbScaleGrid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(10) });
-            tbScaleGrid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
-
-            // Titleblock ComboBox
-            StackPanel tbStack = new StackPanel();
-            tbStack.Children.Add(new WpfTextBlock { Text = "Titleblock Family:", FontSize = 9.5, Foreground = new SolidColorBrush(COL_TEXT_MUTED), Margin = new Thickness(0, 0, 0, 2) });
-            WpfComboBox comboTb = new WpfComboBox
-            {
-                Height = 28,
-                ItemsSource = _vm.AvailableTitleblocks,
-                DisplayMemberPath = "Name",
-                SelectedItem = _vm.SelectedTitleblock
-            };
-            comboTb.SelectionChanged += (s, e) => _vm.SelectedTitleblock = comboTb.SelectedItem as TitleblockItem;
-            tbStack.Children.Add(comboTb);
-            WpfGrid.SetColumn(tbStack, 0);
-            tbScaleGrid.Children.Add(tbStack);
-
-            // Scale ComboBox
-            StackPanel scStack = new StackPanel();
-            scStack.Children.Add(new WpfTextBlock { Text = "View Scale:", FontSize = 9.5, Foreground = new SolidColorBrush(COL_TEXT_MUTED), Margin = new Thickness(0, 0, 0, 2) });
-            WpfComboBox comboScale = new WpfComboBox { Height = 28 };
-            comboScale.Items.Add("1:50");
-            comboScale.Items.Add("1:100");
-            comboScale.Items.Add("1:200");
-            comboScale.Items.Add("1:500");
-            comboScale.SelectedIndex = 1; // 1:100 default
-            comboScale.SelectionChanged += (s, e) =>
-            {
-                string sel = comboScale.SelectedItem as string;
-                if (sel == "1:50") _vm.SelectedViewScale = 50;
-                else if (sel == "1:100") _vm.SelectedViewScale = 100;
-                else if (sel == "1:200") _vm.SelectedViewScale = 200;
-                else if (sel == "1:500") _vm.SelectedViewScale = 500;
-            };
-            scStack.Children.Add(comboScale);
-            WpfGrid.SetColumn(scStack, 2);
-            tbScaleGrid.Children.Add(scStack);
-
-            formStack.Children.Add(tbScaleGrid);
-
-            // Scope box and parameter
-            WpfGrid scopeGrid = new WpfGrid { Margin = new Thickness(0, 0, 0, 10) };
+            // Scope Box & Parameters Section
+            WpfGrid scopeGrid = new WpfGrid { Margin = new Thickness(0, 6, 0, 10) };
             scopeGrid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
             scopeGrid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(10) });
             scopeGrid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
 
             StackPanel msStack = new StackPanel();
-            msStack.Children.Add(new WpfTextBlock { Text = "Master Scope Box:", FontSize = 9.5, Foreground = new SolidColorBrush(COL_TEXT_MUTED), Margin = new Thickness(0, 0, 0, 2) });
+            msStack.Children.Add(new WpfTextBlock { Text = "Master Scope Box (Overall):", FontSize = 9.5, Foreground = new SolidColorBrush(COL_TEXT_MUTED), Margin = new Thickness(0, 0, 0, 2) });
             WpfComboBox cMasterScope = new WpfComboBox { Height = 28, ItemsSource = _vm.AvailableScopeBoxes, SelectedItem = _vm.Config.MasterScopeBoxName };
             cMasterScope.SelectionChanged += (s, e) => { if (cMasterScope.SelectedItem != null) _vm.Config.MasterScopeBoxName = cMasterScope.SelectedItem.ToString(); };
             msStack.Children.Add(cMasterScope);
@@ -2290,7 +2335,7 @@ namespace ZoningFloorArea.Views
             scopeGrid.Children.Add(msStack);
 
             StackPanel vpStack = new StackPanel();
-            vpStack.Children.Add(new WpfTextBlock { Text = "Building Parameter:", FontSize = 9.5, Foreground = new SolidColorBrush(COL_TEXT_MUTED), Margin = new Thickness(0, 0, 0, 2) });
+            vpStack.Children.Add(new WpfTextBlock { Text = "Building View Parameter:", FontSize = 9.5, Foreground = new SolidColorBrush(COL_TEXT_MUTED), Margin = new Thickness(0, 0, 0, 2) });
             WpfComboBox cViewParam = new WpfComboBox { Height = 28, ItemsSource = _vm.AvailableViewParameters, SelectedItem = _vm.Config.ViewBuildingParameterName };
             cViewParam.SelectionChanged += (s, e) => { if (cViewParam.SelectedItem != null) _vm.Config.ViewBuildingParameterName = cViewParam.SelectedItem.ToString(); };
             vpStack.Children.Add(cViewParam);
@@ -2299,18 +2344,7 @@ namespace ZoningFloorArea.Views
 
             formStack.Children.Add(scopeGrid);
 
-            // Checkboxes: Reposition & Only Typical Ranges
-            WpfCheckBox chkOnlyTyp = new WpfCheckBox
-            {
-                Content = "Only diagram configured typical floor ranges (Clean Browser)",
-                IsChecked = _vm.OnlyTypicalRanges,
-                FontWeight = FontWeights.Medium,
-                Margin = new Thickness(0, 0, 0, 4)
-            };
-            chkOnlyTyp.Checked += (s, e) => { _vm.OnlyTypicalRanges = true; RefreshStep4PreviewUI(); };
-            chkOnlyTyp.Unchecked += (s, e) => { _vm.OnlyTypicalRanges = false; RefreshStep4PreviewUI(); };
-            formStack.Children.Add(chkOnlyTyp);
-
+            // Checkbox: Reposition
             WpfCheckBox chkRepo = new WpfCheckBox
             {
                 Content = "Reposition & update viewports if views already exist on sheets",
@@ -2341,14 +2375,14 @@ namespace ZoningFloorArea.Views
             StackPanel prevHdr = new StackPanel { Margin = new Thickness(0, 0, 0, 10) };
             prevHdr.Children.Add(new WpfTextBlock
             {
-                Text = "Live Sheet Layout Preview",
+                Text = "Live Sheet & Matrix Canvas Visualizer",
                 FontSize = 15,
                 FontWeight = FontWeights.SemiBold,
                 Foreground = new SolidColorBrush(COL_TEXT_MAIN)
             });
             prevHdr.Children.Add(new WpfTextBlock
             {
-                Text = "Simulated graphical layout showing sheet cards and planned viewport placements.",
+                Text = "Simulated drawing workspace displaying real viewport matrix slots, building Scope Boxes, and Title on Sheet badges.",
                 FontSize = 11.5,
                 Foreground = new SolidColorBrush(COL_TEXT_MUTED)
             });
@@ -2457,6 +2491,7 @@ namespace ZoningFloorArea.Views
                 WpfGrid shHdr = new WpfGrid { Margin = new Thickness(0, 0, 0, 8) };
                 shHdr.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
                 shHdr.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
+                shHdr.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
 
                 Border numPill = new Border
                 {
@@ -2485,9 +2520,41 @@ namespace ZoningFloorArea.Views
                 };
                 WpfGrid.SetColumn(txtShName, 1);
                 shHdr.Children.Add(txtShName);
+
+                // Scale badge
+                Border scBadge = new Border
+                {
+                    Background = new SolidColorBrush((WpfColor)ColorConverter.ConvertFromString("#F1F5F9")),
+                    BorderBrush = new SolidColorBrush(COL_BORDER_LIGHT),
+                    BorderThickness = new Thickness(1),
+                    CornerRadius = new CornerRadius(4),
+                    Padding = new Thickness(6, 2, 6, 2)
+                };
+                scBadge.Child = new WpfTextBlock
+                {
+                    Text = "📐 " + ps.ScaleDisplay,
+                    FontSize = 9.5,
+                    FontWeight = FontWeights.Medium,
+                    Foreground = new SolidColorBrush(COL_TEXT_MUTED)
+                };
+                WpfGrid.SetColumn(scBadge, 2);
+                shHdr.Children.Add(scBadge);
+
                 sStack.Children.Add(shHdr);
 
-                // Simulated Viewport Layout Canvas
+                // Simulated Viewport Layout Canvas (Matrix 1 to 8)
+                int rows = 1;
+                int cols = 1;
+                switch (ps.LayoutMode)
+                {
+                    case SheetLayoutMode.Single1View: rows = 1; cols = 1; break;
+                    case SheetLayoutMode.Dual2Views: rows = 1; cols = 2; break;
+                    case SheetLayoutMode.Triple3Views: rows = 1; cols = 3; break;
+                    case SheetLayoutMode.Quad4Views: rows = 2; cols = 2; break;
+                    case SheetLayoutMode.Hex6Views: rows = 2; cols = 3; break;
+                    case SheetLayoutMode.Octo8Views: rows = 2; cols = 4; break;
+                }
+
                 Border canvas = new Border
                 {
                     Background = new SolidColorBrush((WpfColor)ColorConverter.ConvertFromString("#F8FAFC")),
@@ -2495,27 +2562,18 @@ namespace ZoningFloorArea.Views
                     BorderThickness = new Thickness(1),
                     CornerRadius = new CornerRadius(6),
                     Padding = new Thickness(6),
-                    Height = ps.LayoutMode == SheetLayoutMode.Matrix4Views ? 110 : 70
+                    Height = rows > 1 ? 120 : 75
                 };
 
                 WpfGrid vpGrid = new WpfGrid();
-                if (ps.LayoutMode == SheetLayoutMode.SingleView)
+                for (int c = 0; c < cols; c++)
                 {
+                    if (c > 0) vpGrid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(6) });
                     vpGrid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
                 }
-                else if (ps.LayoutMode == SheetLayoutMode.SideBySide2Views)
+                for (int r = 0; r < rows; r++)
                 {
-                    vpGrid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
-                    vpGrid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(6) });
-                    vpGrid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
-                }
-                else if (ps.LayoutMode == SheetLayoutMode.Matrix4Views)
-                {
-                    vpGrid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
-                    vpGrid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(6) });
-                    vpGrid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
-                    vpGrid.RowDefinitions.Add(new RowDefinition { Height = new GridLength(1, GridUnitType.Star) });
-                    vpGrid.RowDefinitions.Add(new RowDefinition { Height = new GridLength(6) });
+                    if (r > 0) vpGrid.RowDefinitions.Add(new RowDefinition { Height = new GridLength(6) });
                     vpGrid.RowDefinitions.Add(new RowDefinition { Height = new GridLength(1, GridUnitType.Star) });
                 }
 
@@ -2534,37 +2592,33 @@ namespace ZoningFloorArea.Views
                     StackPanel vpContent = new StackPanel { VerticalAlignment = VerticalAlignment.Center };
                     vpContent.Children.Add(new WpfTextBlock
                     {
-                        Text = "📐 " + vp.LevelName,
+                        Text = !string.IsNullOrEmpty(vp.FormattedTitleOnSheet) ? vp.FormattedTitleOnSheet : ("📐 " + vp.LevelName),
                         FontWeight = FontWeights.Bold,
-                        FontSize = 10,
+                        FontSize = 9.5,
                         Foreground = new SolidColorBrush(COL_TEXT_MAIN),
-                        HorizontalAlignment = HorizontalAlignment.Center
+                        HorizontalAlignment = HorizontalAlignment.Center,
+                        TextWrapping = TextWrapping.NoWrap,
+                        TextTrimming = TextTrimming.CharacterEllipsis
                     });
+
+                    string scopeBoxLabel = !string.IsNullOrEmpty(vp.ScopeBoxName) && vp.ScopeBoxName != "(None)" ?
+                        string.Format("🟢 Scope: {0}", vp.ScopeBoxName) : "⚪ No Scope Box";
+
                     vpContent.Children.Add(new WpfTextBlock
                     {
-                        Text = vp.BuildingName,
-                        FontSize = 8.5,
-                        Foreground = new SolidColorBrush(COL_TEXT_MUTED),
+                        Text = scopeBoxLabel,
+                        FontSize = 8,
+                        Foreground = new SolidColorBrush((WpfColor)ColorConverter.ConvertFromString("#10B981")),
                         HorizontalAlignment = HorizontalAlignment.Center
                     });
+
                     vpBox.Child = vpContent;
 
-                    if (ps.LayoutMode == SheetLayoutMode.SingleView)
-                    {
-                        WpfGrid.SetColumn(vpBox, 0);
-                    }
-                    else if (ps.LayoutMode == SheetLayoutMode.SideBySide2Views)
-                    {
-                        WpfGrid.SetColumn(vpBox, vIdx == 0 ? 0 : 2);
-                    }
-                    else if (ps.LayoutMode == SheetLayoutMode.Matrix4Views)
-                    {
-                        int c = (vIdx % 2 == 0) ? 0 : 2;
-                        int r = (vIdx < 2) ? 0 : 2;
-                        WpfGrid.SetColumn(vpBox, c);
-                        WpfGrid.SetRow(vpBox, r);
-                    }
+                    int colIdx = (vIdx % cols) * 2;
+                    int rowIdx = (vIdx / cols) * 2;
 
+                    WpfGrid.SetColumn(vpBox, colIdx);
+                    WpfGrid.SetRow(vpBox, rowIdx);
                     vpGrid.Children.Add(vpBox);
                 }
 

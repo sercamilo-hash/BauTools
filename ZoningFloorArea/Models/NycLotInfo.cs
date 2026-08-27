@@ -7,114 +7,192 @@ namespace ZoningFloorArea.Models
 {
     public enum LotElementType
     {
-        ModelCurves,        // 3D Model Curves on Level
-        DetailCurves,       // 2D Detail Curves in active plan view
-        AreaBoundaryLines   // Area Boundary Lines (for Area/Zoning plans)
+        ModelCurves = 0,
+        DetailLines = 1,
+        RoomSeparators = 2,
+        AreaBoundaryLines = 3
     }
 
     public enum LotAnchorCorner
     {
-        Southwest, // Min X, Min Y (Default)
-        Northwest, // Min X, Max Y
-        Southeast, // Max X, Min Y
-        Northeast, // Max X, Max Y
-        Center     // Center of Bounding Box
+        Southwest = 0,
+        Northwest = 1,
+        Southeast = 2,
+        Northeast = 3,
+        Center = 4
     }
 
     public enum LotGroupingMode
     {
-        SingleGroup, // All elements in 1 Group named after Lot Address
-        SplitGroups, // 2 Groups: [NYC Lot - Address] and [NYC Context - Block]
-        NoGroup      // Leave elements ungrouped
+        SingleGroup = 0,
+        SplitSubjectAndContext = 1,
+        NoGrouping = 2,
+        SplitGroups = 1,
+        NoGroup = 2
     }
 
     public class NycSearchResult
     {
-        public string Label { get; set; } = string.Empty;
-        public string Address { get; set; } = string.Empty;
-        public string Borough { get; set; } = string.Empty;
-        public string Bbl { get; set; } = string.Empty;
-        public string HouseNumber { get; set; } = string.Empty;
-        public string Street { get; set; } = string.Empty;
-        public string PostalCode { get; set; } = string.Empty;
+        public string Label { get; set; }
+        public string Borough { get; set; }
+        public string Block { get; set; }
+        public string Lot { get; set; }
+        public string Bbl { get; set; }
+        public string Address { get; set; }
+        public string HouseNumber { get; set; }
+        public string Street { get; set; }
+        public string PostalCode { get; set; }
 
-        public override string ToString() => Label;
+        public NycSearchResult()
+        {
+            Label = string.Empty;
+            Borough = string.Empty;
+            Block = string.Empty;
+            Lot = string.Empty;
+            Bbl = string.Empty;
+            Address = string.Empty;
+            HouseNumber = string.Empty;
+            Street = string.Empty;
+            PostalCode = string.Empty;
+        }
+
+        public override string ToString()
+        {
+            return Label;
+        }
     }
 
     public class NycBuildingFootprint
     {
-        public int Bin { get; set; }
-        public string BaseBbl { get; set; } = string.Empty;
-        public string Address { get; set; } = string.Empty;
+        public string Bin { get; set; }
+        public string Address { get; set; }
         public double HeightRoofFt { get; set; }
-        public double GroundElevFt { get; set; }
-        public double NumFloors { get; set; }
+        public double GroundElevationFt { get; set; }
+        public int NumFloors { get; set; }
         public int YearBuilt { get; set; }
-        public string BldgClass { get; set; } = string.Empty;
-        public bool IsSubjectLotBuilding { get; set; }
+        public bool IsSubjectBuilding { get; set; }
+        public bool IsSubjectLotBuilding { get { return IsSubjectBuilding; } set { IsSubjectBuilding = value; } }
+        public List<List<XYZ>> PolygonRings { get; set; }
 
         public double EffectiveHeightFt
         {
             get
             {
                 if (HeightRoofFt > 5.0) return HeightRoofFt;
-                if (NumFloors > 0) return NumFloors * 12.0;
+                if (NumFloors > 0) return NumFloors * 11.5;
                 return 30.0;
             }
         }
 
-        public List<List<XYZ>> PolygonRings { get; set; } = new List<List<XYZ>>();
+        public NycBuildingFootprint()
+        {
+            Bin = string.Empty;
+            Address = string.Empty;
+            PolygonRings = new List<List<XYZ>>();
+        }
     }
 
     public class NycLotInfo
     {
-        // Identifiers
-        public string Bbl { get; set; } = string.Empty;
-        public string Address { get; set; } = string.Empty;
-        public string Borough { get; set; } = string.Empty;
-        public string Block { get; set; } = string.Empty;
-        public string Lot { get; set; } = string.Empty;
-        public string ZipCode { get; set; } = string.Empty;
+        public string Bbl { get; set; }
+        public string Borough { get; set; }
+        public string Block { get; set; }
+        public string Lot { get; set; }
+        public string Address { get; set; }
+        public string ZipCode { get; set; }
 
-        // Zoning & Urban Planning
-        public string ZoningDistrict1 { get; set; } = string.Empty;
-        public string ZoningDistrict2 { get; set; } = string.Empty;
-        public string CommercialOverlay1 { get; set; } = string.Empty;
-        public string CommercialOverlay2 { get; set; } = string.Empty;
-        public string SpecialDistrict1 { get; set; } = string.Empty;
-        public string SpecialDistrict2 { get; set; } = string.Empty;
+        public double LotAreaSqFt { get; set; }
+        public double TotalBldgAreaSqFt { get; set; }
+        public double ResAreaSqFt { get; set; }
+        public double ComAreaSqFt { get; set; }
+        public double OfficeAreaSqFt { get; set; }
+        public double RetailAreaSqFt { get; set; }
+        public double GarageAreaSqFt { get; set; }
+        public double StorageAreaSqFt { get; set; }
+        public double FactoryAreaSqFt { get; set; }
+        public double OtherAreaSqFt { get; set; }
 
-        // FAR (Floor Area Ratio)
-        public double ResidFar { get; set; }
+        public int NumFloors { get; set; }
+        public int NumBuildings { get; set; }
+        public int YearBuilt { get; set; }
+
+        public double BuiltFar { get; set; }
+        public double ResFar { get; set; }
+        public double ResidFar { get { return ResFar; } set { ResFar = value; } }
         public double CommFar { get; set; }
         public double FacilFar { get; set; }
-        public double BuiltFar { get; set; }
 
-        // Areas & Dimensions (Values from NYC PLUTO)
-        public double LotAreaSqFt { get; set; }
-        public double BldgAreaSqFt { get; set; }
-        public double LotFrontageFt { get; set; }
-        public double LotDepthFt { get; set; }
-        public double NumFloors { get; set; }
-        public int YearBuilt { get; set; }
-        public string LandUse { get; set; } = string.Empty;
-        public string OwnerName { get; set; } = string.Empty;
-        public string BuildingClass { get; set; } = string.Empty;
+        public double LotFrontageFt { get { return WidthFt; } set { } }
+        public double LotDepthFt { get { return DepthFt; } set { } }
+        public double BldgAreaSqFt { get { return TotalBldgAreaSqFt; } set { TotalBldgAreaSqFt = value; } }
 
-        // Adjacency to development lot
+        public string ZoningDistrict1 { get; set; }
+        public string ZoningDistrict2 { get; set; }
+        public string CommercialOverlay1 { get; set; }
+        public string CommercialOverlay2 { get; set; }
+        public string SpecialDistrict1 { get; set; }
+        public string SpecialDistrict2 { get; set; }
+
+        public string LandUse { get; set; }
+        public string OwnerName { get; set; }
+        public string BuildingClass { get; set; }
+
         public bool IsAdjacent { get; set; }
+        public List<List<XYZ>> PolygonRings { get; set; }
 
-        // Geometry: List of polygon rings (each ring is a list of [X, Y] in EPSG:2263 US Survey Feet)
-        public List<List<XYZ>> PolygonRings { get; set; } = new List<List<XYZ>>();
+        public double MinX
+        {
+            get
+            {
+                var pts = PolygonRings.SelectMany(r => r).ToList();
+                return pts.Count > 0 ? pts.Min(p => p.X) : 0.0;
+            }
+        }
+        public double MaxX
+        {
+            get
+            {
+                var pts = PolygonRings.SelectMany(r => r).ToList();
+                return pts.Count > 0 ? pts.Max(p => p.X) : 0.0;
+            }
+        }
+        public double MinY
+        {
+            get
+            {
+                var pts = PolygonRings.SelectMany(r => r).ToList();
+                return pts.Count > 0 ? pts.Min(p => p.Y) : 0.0;
+            }
+        }
+        public double MaxY
+        {
+            get
+            {
+                var pts = PolygonRings.SelectMany(r => r).ToList();
+                return pts.Count > 0 ? pts.Max(p => p.Y) : 0.0;
+            }
+        }
 
-        // Bounding Box in State Plane Coordinates (Feet)
-        public double MinX => PolygonRings.SelectMany(r => r).DefaultIfEmpty(XYZ.Zero).Min(p => p.X);
-        public double MaxX => PolygonRings.SelectMany(r => r).DefaultIfEmpty(XYZ.Zero).Max(p => p.X);
-        public double MinY => PolygonRings.SelectMany(r => r).DefaultIfEmpty(XYZ.Zero).Min(p => p.Y);
-        public double MaxY => PolygonRings.SelectMany(r => r).DefaultIfEmpty(XYZ.Zero).Max(p => p.Y);
+        public double WidthFt { get { return Math.Max(0, MaxX - MinX); } }
+        public double DepthFt { get { return Math.Max(0, MaxY - MinY); } }
 
-        public double WidthFt => Math.Max(0, MaxX - MinX);
-        public double DepthFt => Math.Max(0, MaxY - MinY);
+        public NycLotInfo()
+        {
+            Bbl = string.Empty;
+            Borough = string.Empty;
+            Address = string.Empty;
+            ZipCode = string.Empty;
+            ZoningDistrict1 = string.Empty;
+            ZoningDistrict2 = string.Empty;
+            CommercialOverlay1 = string.Empty;
+            CommercialOverlay2 = string.Empty;
+            SpecialDistrict1 = string.Empty;
+            SpecialDistrict2 = string.Empty;
+            LandUse = string.Empty;
+            OwnerName = string.Empty;
+            BuildingClass = string.Empty;
+            PolygonRings = new List<List<XYZ>>();
+        }
 
         public XYZ GetAnchorPoint(LotAnchorCorner corner)
         {
@@ -140,46 +218,71 @@ namespace ZoningFloorArea.Models
             var parts = new List<string>();
             if (!string.IsNullOrWhiteSpace(ZoningDistrict1)) parts.Add(ZoningDistrict1);
             if (!string.IsNullOrWhiteSpace(ZoningDistrict2)) parts.Add(ZoningDistrict2);
-            if (!string.IsNullOrWhiteSpace(CommercialOverlay1)) parts.Add($"Overlay: {CommercialOverlay1}");
-            if (!string.IsNullOrWhiteSpace(SpecialDistrict1)) parts.Add($"Special: {SpecialDistrict1}");
-            return parts.Count > 0 ? string.Join(" / ", parts) : "N/A";
+            if (!string.IsNullOrWhiteSpace(CommercialOverlay1)) parts.Add(string.Format("Overlay: {0}", CommercialOverlay1));
+            if (!string.IsNullOrWhiteSpace(SpecialDistrict1)) parts.Add(string.Format("Special: {0}", SpecialDistrict1));
+            return parts.Count > 0 ? string.Join(" / ", parts.ToArray()) : "N/A";
         }
     }
 
     public class NycBlockContext
     {
-        public string Borough { get; set; } = string.Empty;
-        public string BlockNumber { get; set; } = string.Empty;
-        public NycLotInfo SubjectLot { get; set; } = new NycLotInfo();
-        public List<NycLotInfo> OtherLots { get; set; } = new List<NycLotInfo>();
-        public List<NycBuildingFootprint> Buildings { get; set; } = new List<NycBuildingFootprint>();
+        public string Borough { get; set; }
+        public string BlockNumber { get; set; }
+        public NycLotInfo SubjectLot { get; set; }
+        public List<NycLotInfo> OtherLots { get; set; }
+        public List<NycBuildingFootprint> Buildings { get; set; }
 
-        public List<NycLotInfo> AdjacentLots => OtherLots.Where(l => l.IsAdjacent).ToList();
-        public List<NycLotInfo> RemainingBlockLots => OtherLots.Where(l => !l.IsAdjacent && l.Bbl != SubjectLot.Bbl).ToList();
+        public List<NycLotInfo> AdjacentLots
+        {
+            get { return OtherLots.Where(l => l.IsAdjacent).ToList(); }
+        }
+
+        public List<NycLotInfo> RemainingBlockLots
+        {
+            get { return OtherLots.Where(l => !l.IsAdjacent && l.Bbl != SubjectLot.Bbl).ToList(); }
+        }
 
         public List<NycLotInfo> AllLots
         {
             get
             {
-                var list = new List<NycLotInfo> { SubjectLot };
-                list.AddRange(OtherLots.Where(l => l.Bbl != SubjectLot.Bbl));
+                var list = new List<NycLotInfo>();
+                if (SubjectLot != null) list.Add(SubjectLot);
+                if (OtherLots != null) list.AddRange(OtherLots.Where(l => SubjectLot == null || l.Bbl != SubjectLot.Bbl));
                 return list;
             }
         }
 
-        // Bounding Box of the Entire Block
-        public double MinX => AllLots.Select(l => l.MinX).DefaultIfEmpty(0).Min();
-        public double MaxX => AllLots.Select(l => l.MaxX).DefaultIfEmpty(0).Max();
-        public double MinY => AllLots.Select(l => l.MinY).DefaultIfEmpty(0).Min();
-        public double MaxY => AllLots.Select(l => l.MaxY).DefaultIfEmpty(0).Max();
+        public double MinX
+        {
+            get { var lots = AllLots; return lots.Count > 0 ? lots.Min(l => l.MinX) : 0.0; }
+        }
+        public double MaxX
+        {
+            get { var lots = AllLots; return lots.Count > 0 ? lots.Max(l => l.MaxX) : 0.0; }
+        }
+        public double MinY
+        {
+            get { var lots = AllLots; return lots.Count > 0 ? lots.Min(l => l.MinY) : 0.0; }
+        }
+        public double MaxY
+        {
+            get { var lots = AllLots; return lots.Count > 0 ? lots.Max(l => l.MaxY) : 0.0; }
+        }
 
-        public double WidthFt => Math.Max(0, MaxX - MinX);
-        public double DepthFt => Math.Max(0, MaxY - MinY);
+        public double WidthFt { get { return Math.Max(0, MaxX - MinX); } }
+        public double DepthFt { get { return Math.Max(0, MaxY - MinY); } }
 
-        /// <summary>
-        /// Computes adjacency between other lots in the block and the subject lot.
-        /// </summary>
-        public void CalculateAdjacency(double toleranceFt = 1.0)
+        public NycBlockContext()
+        {
+            Borough = string.Empty;
+            BlockNumber = string.Empty;
+            SubjectLot = new NycLotInfo();
+            OtherLots = new List<NycLotInfo>();
+            Buildings = new List<NycBuildingFootprint>();
+        }
+
+        public void CalculateAdjacency(double toleranceFt)
         {
             if (SubjectLot == null || SubjectLot.PolygonRings.Count == 0) return;
 
@@ -193,80 +296,42 @@ namespace ZoningFloorArea.Models
                     continue;
                 }
 
-                bool isAdjacent = false;
-                var otherPoints = other.PolygonRings.SelectMany(r => r).ToList();
-
-                foreach (var pOther in otherPoints)
+                bool isAdj = false;
+                foreach (var ring in other.PolygonRings)
                 {
-                    foreach (var pSub in subjectPoints)
+                    foreach (var pt in ring)
                     {
-                        if (pOther.DistanceTo(pSub) <= toleranceFt)
+                        foreach (var subPt in subjectPoints)
                         {
-                            isAdjacent = true;
-                            break;
+                            double dist = Math.Sqrt(Math.Pow(pt.X - subPt.X, 2) + Math.Pow(pt.Y - subPt.Y, 2));
+                            if (dist <= toleranceFt)
+                            {
+                                isAdj = true;
+                                break;
+                            }
                         }
+                        if (isAdj) break;
                     }
-                    if (isAdjacent) break;
+                    if (isAdj) break;
                 }
-
-                if (!isAdjacent && other.MinX <= SubjectLot.MaxX + toleranceFt &&
-                    other.MaxX >= SubjectLot.MinX - toleranceFt &&
-                    other.MinY <= SubjectLot.MaxY + toleranceFt &&
-                    other.MaxY >= SubjectLot.MinY - toleranceFt)
-                {
-                    isAdjacent = true;
-                }
-
-                other.IsAdjacent = isAdjacent;
+                other.IsAdjacent = isAdj;
             }
         }
 
-        /// <summary>
-        /// Identifies surrounding street names from the address registry of the block.
-        /// </summary>
+        public void CalculateAdjacency()
+        {
+            CalculateAdjacency(1.0);
+        }
+
         public Dictionary<string, string> GetSurroundingStreetNames()
         {
-            var streets = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
-
-            foreach (var lot in AllLots)
+            var dict = new Dictionary<string, string>();
+            var addresses = AllLots.Select(l => l.Address).Where(a => !string.IsNullOrWhiteSpace(a)).Distinct().ToList();
+            if (addresses.Count > 0)
             {
-                if (string.IsNullOrWhiteSpace(lot.Address)) continue;
-                string addr = lot.Address.Trim();
-
-                int firstSpace = addr.IndexOf(' ');
-                if (firstSpace > 0 && firstSpace < addr.Length - 1 && char.IsDigit(addr[0]))
-                {
-                    string street = addr.Substring(firstSpace + 1).Trim();
-                    if (!string.IsNullOrWhiteSpace(street))
-                    {
-                        streets.Add(street);
-                    }
-                }
-                else
-                {
-                    streets.Add(addr);
-                }
+                dict["Streets"] = string.Join(", ", addresses.Take(4).ToArray());
             }
-
-            var result = new Dictionary<string, string>();
-            var streetList = streets.ToList();
-
-            if (streetList.Count == 0 && !string.IsNullOrWhiteSpace(SubjectLot.Address))
-            {
-                streetList.Add(SubjectLot.Address);
-            }
-
-            if (streetList.Count > 0) result["North"] = streetList[0];
-            if (streetList.Count > 1) result["South"] = streetList[1];
-            if (streetList.Count > 2) result["East"] = streetList[2];
-            if (streetList.Count > 3) result["West"] = streetList[3];
-
-            if (streetList.Count == 1)
-            {
-                result["South"] = streetList[0];
-            }
-
-            return result;
+            return dict;
         }
     }
 }
