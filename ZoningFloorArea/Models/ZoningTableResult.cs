@@ -9,51 +9,70 @@ namespace ZoningFloorArea.Models
         public double UlebPercent { get; set; }
 
         public List<string> DeductionCategories { get; set; }
-        public List<LevelZoningRow> ResidentialRows { get; set; }
-        public List<LevelZoningRow> CommercialRows { get; set; }
+        public List<LevelZoningRow> Rows { get; set; }
+        public LevelZoningRow TotalsRow { get; set; }
 
-        public LevelZoningRow ResidentialSubtotal { get; set; }
-        public LevelZoningRow CommercialSubtotal { get; set; }
-        public LevelZoningRow GrandTotal { get; set; }
+        // Backward compatibility
+        public List<LevelZoningRow> ResidentialRows
+        {
+            get { return Rows; }
+            set { Rows = value; }
+        }
+
+        public List<LevelZoningRow> CommercialRows
+        {
+            get { return Rows; }
+            set { Rows = value; }
+        }
+
+        public LevelZoningRow ResidentialSubtotal
+        {
+            get { return TotalsRow; }
+            set { TotalsRow = value; }
+        }
+
+        public LevelZoningRow CommercialSubtotal
+        {
+            get { return TotalsRow; }
+            set { TotalsRow = value; }
+        }
+
+        public LevelZoningRow GrandTotal
+        {
+            get { return TotalsRow; }
+            set { TotalsRow = value; }
+        }
 
         public double TotalZoningFloorArea
         {
-            get
-            {
-                double resZfa = ResidentialSubtotal != null ? ResidentialSubtotal.ZoningFloorArea : 0;
-                double comZfa = CommercialSubtotal != null ? CommercialSubtotal.ZoningFloorArea : 0;
-                return resZfa + comZfa;
-            }
+            get { return TotalsRow != null ? TotalsRow.TotalZfa : 0.0; }
         }
 
         public double TotalFar
         {
-            get { return LotArea > 0 ? TotalZoningFloorArea / LotArea : 0; }
+            get { return TotalsRow != null ? TotalsRow.TotalFar : 0.0; }
         }
 
         public ZoningTableResult()
         {
             BuildingName = "BUILDING C";
             LotArea = 34500.0;
-            UlebPercent = 0.05;
+            UlebPercent = 0.0;
 
             DeductionCategories = new List<string>
             {
-                "CHASE WALLS",
+                "CHASE WALL",
                 "STAIRS",
-                "MECHANICAL",
+                "PARKING",
                 "BYCYCLE PARKING",
                 "AMENITIES",
                 "CORRIDOR",
+                "MECH ROOM",
                 "REFUSE"
             };
 
-            ResidentialRows = new List<LevelZoningRow>();
-            CommercialRows = new List<LevelZoningRow>();
-
-            ResidentialSubtotal = new LevelZoningRow { LevelName = "SUBTOTAL", UsageCategory = "Residential" };
-            CommercialSubtotal = new LevelZoningRow { LevelName = "SUBTOTAL", UsageCategory = "Commercial" };
-            GrandTotal = new LevelZoningRow { LevelName = "TOTAL" };
+            Rows = new List<LevelZoningRow>();
+            TotalsRow = new LevelZoningRow { LevelName = "TOTALS" };
         }
     }
 }

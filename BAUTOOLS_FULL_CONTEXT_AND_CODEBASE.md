@@ -987,16 +987,79 @@ namespace ZoningFloorArea.Models
         public string GroupName { get; set; }
         public string GroupColorHex { get; set; }
 
-        public double GrossFloorArea { get; set; }
+        // Proposed GFA
+        public double ResidentialGrossFloorArea { get; set; }
+        public double CommercialGrossFloorArea { get; set; }
+        public double TotalGrossFloorArea
+        {
+            get { return ResidentialGrossFloorArea + CommercialGrossFloorArea; }
+        }
+
+        // Deductions
         public Dictionary<string, double> Deductions { get; set; }
+        public Dictionary<string, double> ResidentialDeductions { get; set; }
+        public Dictionary<string, double> CommercialDeductions { get; set; }
+
         public double TotalDeductions { get; set; }
+        public double TotalResidentialDeductions { get; set; }
+        public double TotalCommercialDeductions { get; set; }
+
+        public double UlebPercent { get; set; }
+        public double LotArea { get; set; }
+
+        // ZFA Calculations
+        public double ResidentialZfa
+        {
+            get
+            {
+                double net = Math.Max(0, ResidentialGrossFloorArea - TotalResidentialDeductions);
+                double uleb = net * UlebPercent;
+                return Math.Max(0, net - uleb);
+            }
+        }
+
+        public double CommercialZfa
+        {
+            get
+            {
+                double net = Math.Max(0, CommercialGrossFloorArea - TotalCommercialDeductions);
+                double uleb = net * UlebPercent;
+                return Math.Max(0, net - uleb);
+            }
+        }
+
+        public double TotalZfa
+        {
+            get { return ResidentialZfa + CommercialZfa; }
+        }
+
+        // FAR Calculations
+        public double ResidentialFar
+        {
+            get { return LotArea > 0 ? ResidentialZfa / LotArea : 0; }
+        }
+
+        public double CommercialFar
+        {
+            get { return LotArea > 0 ? CommercialZfa / LotArea : 0; }
+        }
+
+        public double TotalFar
+        {
+            get { return LotArea > 0 ? TotalZfa / LotArea : 0; }
+        }
+
+        // Backward compatibility
+        public double GrossFloorArea
+        {
+            get { return TotalGrossFloorArea; }
+            set { ResidentialGrossFloorArea = value; }
+        }
 
         public double NetArea
         {
-            get { return Math.Max(0, GrossFloorArea - TotalDeductions); }
+            get { return Math.Max(0, TotalGrossFloorArea - TotalDeductions); }
         }
-
-        public double UlebPercent { get; set; }
 
         public double UlebAmount
         {
@@ -1005,14 +1068,12 @@ namespace ZoningFloorArea.Models
 
         public double ZoningFloorArea
         {
-            get { return Math.Max(0, NetArea - UlebAmount); }
+            get { return TotalZfa; }
         }
-
-        public double LotArea { get; set; }
 
         public double Far
         {
-            get { return LotArea > 0 ? ZoningFloorArea / LotArea : 0; }
+            get { return TotalFar; }
         }
 
         public double this[string categoryName]
@@ -1027,7 +1088,9 @@ namespace ZoningFloorArea.Models
             GroupName = string.Empty;
             GroupColorHex = "#94A3B8";
             Deductions = new Dictionary<string, double>(StringComparer.OrdinalIgnoreCase);
-            UlebPercent = 0.05;
+            ResidentialDeductions = new Dictionary<string, double>(StringComparer.OrdinalIgnoreCase);
+            CommercialDeductions = new Dictionary<string, double>(StringComparer.OrdinalIgnoreCase);
+            UlebPercent = 0.0;
             LotArea = 1.0;
         }
 
@@ -1045,6 +1108,24 @@ namespace ZoningFloorArea.Models
             RecalculateTotalDeductions();
         }
 
+        public void SetResidentialDeduction(string categoryName, double val)
+        {
+            ResidentialDeductions[categoryName] = val;
+            double comVal = 0.0;
+            CommercialDeductions.TryGetValue(categoryName, out comVal);
+            Deductions[categoryName] = val + comVal;
+            RecalculateTotalDeductions();
+        }
+
+        public void SetCommercialDeduction(string categoryName, double val)
+        {
+            CommercialDeductions[categoryName] = val;
+            double resVal = 0.0;
+            ResidentialDeductions.TryGetValue(categoryName, out resVal);
+            Deductions[categoryName] = val + resVal;
+            RecalculateTotalDeductions();
+        }
+
         public void RecalculateTotalDeductions()
         {
             double sum = 0;
@@ -1053,6 +1134,20 @@ namespace ZoningFloorArea.Models
                 sum += kvp.Value;
             }
             TotalDeductions = sum;
+
+            double resSum = 0;
+            foreach (KeyValuePair<string, double> kvp in ResidentialDeductions)
+            {
+                resSum += kvp.Value;
+            }
+            TotalResidentialDeductions = resSum;
+
+            double comSum = 0;
+            foreach (KeyValuePair<string, double> kvp in CommercialDeductions)
+            {
+                comSum += kvp.Value;
+            }
+            TotalCommercialDeductions = comSum;
         }
     }
 }
@@ -2395,51 +2490,70 @@ namespace ZoningFloorArea.Models
         public double UlebPercent { get; set; }
 
         public List<string> DeductionCategories { get; set; }
-        public List<LevelZoningRow> ResidentialRows { get; set; }
-        public List<LevelZoningRow> CommercialRows { get; set; }
+        public List<LevelZoningRow> Rows { get; set; }
+        public LevelZoningRow TotalsRow { get; set; }
 
-        public LevelZoningRow ResidentialSubtotal { get; set; }
-        public LevelZoningRow CommercialSubtotal { get; set; }
-        public LevelZoningRow GrandTotal { get; set; }
+        // Backward compatibility
+        public List<LevelZoningRow> ResidentialRows
+        {
+            get { return Rows; }
+            set { Rows = value; }
+        }
+
+        public List<LevelZoningRow> CommercialRows
+        {
+            get { return Rows; }
+            set { Rows = value; }
+        }
+
+        public LevelZoningRow ResidentialSubtotal
+        {
+            get { return TotalsRow; }
+            set { TotalsRow = value; }
+        }
+
+        public LevelZoningRow CommercialSubtotal
+        {
+            get { return TotalsRow; }
+            set { TotalsRow = value; }
+        }
+
+        public LevelZoningRow GrandTotal
+        {
+            get { return TotalsRow; }
+            set { TotalsRow = value; }
+        }
 
         public double TotalZoningFloorArea
         {
-            get
-            {
-                double resZfa = ResidentialSubtotal != null ? ResidentialSubtotal.ZoningFloorArea : 0;
-                double comZfa = CommercialSubtotal != null ? CommercialSubtotal.ZoningFloorArea : 0;
-                return resZfa + comZfa;
-            }
+            get { return TotalsRow != null ? TotalsRow.TotalZfa : 0.0; }
         }
 
         public double TotalFar
         {
-            get { return LotArea > 0 ? TotalZoningFloorArea / LotArea : 0; }
+            get { return TotalsRow != null ? TotalsRow.TotalFar : 0.0; }
         }
 
         public ZoningTableResult()
         {
             BuildingName = "BUILDING C";
             LotArea = 34500.0;
-            UlebPercent = 0.05;
+            UlebPercent = 0.0;
 
             DeductionCategories = new List<string>
             {
-                "CHASE WALLS",
+                "CHASE WALL",
                 "STAIRS",
-                "MECHANICAL",
+                "PARKING",
                 "BYCYCLE PARKING",
                 "AMENITIES",
                 "CORRIDOR",
+                "MECH ROOM",
                 "REFUSE"
             };
 
-            ResidentialRows = new List<LevelZoningRow>();
-            CommercialRows = new List<LevelZoningRow>();
-
-            ResidentialSubtotal = new LevelZoningRow { LevelName = "SUBTOTAL", UsageCategory = "Residential" };
-            CommercialSubtotal = new LevelZoningRow { LevelName = "SUBTOTAL", UsageCategory = "Commercial" };
-            GrandTotal = new LevelZoningRow { LevelName = "TOTAL" };
+            Rows = new List<LevelZoningRow>();
+            TotalsRow = new LevelZoningRow { LevelName = "TOTALS" };
         }
     }
 }
@@ -2592,124 +2706,87 @@ namespace ZoningFloorArea.Services
             sb.AppendLine(string.Format(" <Worksheet ss:Name=\"{0}\">", cleanSheetName));
             sb.AppendLine("  <Table>");
 
-            int totalCols = 2 + table.DeductionCategories.Count + 4 + 4 + 2;
-            sb.AppendLine("   <Row ss:Height=\"24\">");
-            sb.AppendLine(string.Format("    <Cell ss:MergeAcross=\"{0}\" ss:StyleID=\"HeaderMain\"><Data ss:Type=\"String\">FLOOR AREA CALCULATIONS - {1}</Data></Cell>", totalCols - 1, table.BuildingName.ToUpper()));
+            int dedCount = table.DeductionCategories.Count;
+            int totalCols = 1 + 2 + dedCount + 3 + 3;
+
+            // Row 1: Title Header
+            sb.AppendLine("   <Row ss:Height=\"26\">");
+            sb.AppendLine(string.Format("    <Cell ss:MergeAcross=\"{0}\" ss:StyleID=\"HeaderMain\"><Data ss:Type=\"String\">FLOOR AREA CALCULATIONS</Data></Cell>", totalCols - 1));
             sb.AppendLine("   </Row>");
 
-            int resColSpan = 2 + table.DeductionCategories.Count + 4;
+            // Row 2: Top Grouping Headers (PROPOSED, DEDUCTIONS, ZFA, FAR)
             sb.AppendLine("   <Row ss:Height=\"20\">");
-            sb.AppendLine(string.Format("    <Cell ss:MergeAcross=\"{0}\" ss:StyleID=\"HeaderSub\"><Data ss:Type=\"String\">RESIDENTIAL</Data></Cell>", resColSpan - 1));
-            sb.AppendLine("    <Cell ss:MergeAcross=\"3\" ss:StyleID=\"HeaderSub\"><Data ss:Type=\"String\">COMMERCIAL</Data></Cell>");
-            sb.AppendLine("    <Cell ss:StyleID=\"HeaderSub\"><Data ss:Type=\"String\">TOTAL ZONING FLOOR AREA</Data></Cell>");
-            sb.AppendLine("    <Cell ss:StyleID=\"HeaderSub\"><Data ss:Type=\"String\">TOTAL FAR</Data></Cell>");
+            sb.AppendLine("    <Cell ss:StyleID=\"HeaderSub\"><Data ss:Type=\"String\"></Data></Cell>"); // Level corner
+            sb.AppendLine("    <Cell ss:MergeAcross=\"1\" ss:StyleID=\"HeaderSub\"><Data ss:Type=\"String\">PROPOSED</Data></Cell>");
+            sb.AppendLine(string.Format("    <Cell ss:MergeAcross=\"{0}\" ss:StyleID=\"HeaderSub\"><Data ss:Type=\"String\">DEDUCTIONS</Data></Cell>", dedCount - 1));
+            sb.AppendLine("    <Cell ss:MergeAcross=\"2\" ss:StyleID=\"HeaderSub\"><Data ss:Type=\"String\">ZFA</Data></Cell>");
+            sb.AppendLine("    <Cell ss:MergeAcross=\"2\" ss:StyleID=\"HeaderSub\"><Data ss:Type=\"String\">FAR</Data></Cell>");
             sb.AppendLine("   </Row>");
 
+            // Row 3: Subheaders
             sb.AppendLine("   <Row ss:Height=\"24\">");
-            sb.AppendLine("    <Cell ss:StyleID=\"HeaderSub\"><Data ss:Type=\"String\">LEVEL</Data></Cell>");
-            sb.AppendLine("    <Cell ss:StyleID=\"HeaderSub\"><Data ss:Type=\"String\">GROSS FLOOR AREA</Data></Cell>");
+            sb.AppendLine("    <Cell ss:StyleID=\"HeaderSub\"><Data ss:Type=\"String\"></Data></Cell>");
+            sb.AppendLine("    <Cell ss:StyleID=\"HeaderSub\"><Data ss:Type=\"String\">RESIDENTIAL GFA</Data></Cell>");
+            sb.AppendLine("    <Cell ss:StyleID=\"HeaderSub\"><Data ss:Type=\"String\">COMMERCIAL GFA</Data></Cell>");
 
             foreach (string dedCat in table.DeductionCategories)
             {
                 sb.AppendLine(string.Format("    <Cell ss:StyleID=\"HeaderSub\"><Data ss:Type=\"String\">{0}</Data></Cell>", dedCat.ToUpper()));
             }
 
-            sb.AppendLine("    <Cell ss:StyleID=\"HeaderSub\"><Data ss:Type=\"String\">NET AREA</Data></Cell>");
-            sb.AppendLine(string.Format("    <Cell ss:StyleID=\"HeaderSub\"><Data ss:Type=\"String\">{0}% ULEB</Data></Cell>", (int)(table.UlebPercent * 100)));
-            sb.AppendLine("    <Cell ss:StyleID=\"HeaderSub\"><Data ss:Type=\"String\">ZONING FLOOR AREA</Data></Cell>");
-            sb.AppendLine("    <Cell ss:StyleID=\"HeaderSub\"><Data ss:Type=\"String\">FAR</Data></Cell>");
-
-            sb.AppendLine("    <Cell ss:StyleID=\"HeaderSub\"><Data ss:Type=\"String\">GROSS FLOOR AREA</Data></Cell>");
-            sb.AppendLine(string.Format("    <Cell ss:StyleID=\"HeaderSub\"><Data ss:Type=\"String\">{0}% ULEB</Data></Cell>", (int)(table.UlebPercent * 100)));
-            sb.AppendLine("    <Cell ss:StyleID=\"HeaderSub\"><Data ss:Type=\"String\">ZONING FLOOR AREA</Data></Cell>");
-            sb.AppendLine("    <Cell ss:StyleID=\"HeaderSub\"><Data ss:Type=\"String\">FAR</Data></Cell>");
-
+            sb.AppendLine("    <Cell ss:StyleID=\"HeaderSub\"><Data ss:Type=\"String\">RESIDENTIAL</Data></Cell>");
+            sb.AppendLine("    <Cell ss:StyleID=\"HeaderSub\"><Data ss:Type=\"String\">COMMERCIAL</Data></Cell>");
             sb.AppendLine("    <Cell ss:StyleID=\"HeaderSub\"><Data ss:Type=\"String\">TOTAL ZFA</Data></Cell>");
+
+            sb.AppendLine("    <Cell ss:StyleID=\"HeaderSub\"><Data ss:Type=\"String\">RESIDENTIAL</Data></Cell>");
+            sb.AppendLine("    <Cell ss:StyleID=\"HeaderSub\"><Data ss:Type=\"String\">COMMERCIAL</Data></Cell>");
             sb.AppendLine("    <Cell ss:StyleID=\"HeaderSub\"><Data ss:Type=\"String\">TOTAL FAR</Data></Cell>");
             sb.AppendLine("   </Row>");
 
-            int rowCount = Math.Max(table.ResidentialRows.Count, table.CommercialRows.Count);
-
-            for (int i = 0; i < rowCount; i++)
+            // Data Rows (1 per level)
+            foreach (LevelZoningRow r in table.Rows)
             {
-                LevelZoningRow rRes = i < table.ResidentialRows.Count ? table.ResidentialRows[i] : new LevelZoningRow();
-                LevelZoningRow rCom = i < table.CommercialRows.Count ? table.CommercialRows[i] : new LevelZoningRow();
-
-                double totalZfa = rRes.ZoningFloorArea + rCom.ZoningFloorArea;
-                double totalFar = rRes.Far + rCom.Far;
-
                 sb.AppendLine("   <Row ss:Height=\"18\">");
-                sb.AppendLine(string.Format("    <Cell ss:StyleID=\"CellNum\"><Data ss:Type=\"String\">{0}</Data></Cell>", rRes.LevelName));
-                sb.AppendLine(string.Format("    <Cell ss:StyleID=\"CellNum\"><Data ss:Type=\"Number\">{0:F2}</Data></Cell>", rRes.GrossFloorArea));
+                sb.AppendLine(string.Format("    <Cell ss:StyleID=\"CellNum\"><Data ss:Type=\"String\">{0}</Data></Cell>", r.LevelName));
+                sb.AppendLine(string.Format("    <Cell ss:StyleID=\"CellNum\"><Data ss:Type=\"Number\">{0:F2}</Data></Cell>", r.ResidentialGrossFloorArea));
+                sb.AppendLine(string.Format("    <Cell ss:StyleID=\"CellNum\"><Data ss:Type=\"Number\">{0:F2}</Data></Cell>", r.CommercialGrossFloorArea));
 
                 foreach (string cat in table.DeductionCategories)
                 {
-                    double val = rRes.GetDeduction(cat);
+                    double val = r.GetDeduction(cat);
                     sb.AppendLine(string.Format("    <Cell ss:StyleID=\"CellNum\"><Data ss:Type=\"Number\">{0:F2}</Data></Cell>", val));
                 }
 
-                sb.AppendLine(string.Format("    <Cell ss:StyleID=\"CellNum\"><Data ss:Type=\"Number\">{0:F2}</Data></Cell>", rRes.NetArea));
-                sb.AppendLine(string.Format("    <Cell ss:StyleID=\"CellNum\"><Data ss:Type=\"Number\">{0:F2}</Data></Cell>", rRes.UlebAmount));
-                sb.AppendLine(string.Format("    <Cell ss:StyleID=\"CellNum\"><Data ss:Type=\"Number\">{0:F2}</Data></Cell>", rRes.ZoningFloorArea));
-                sb.AppendLine(string.Format("    <Cell ss:StyleID=\"CellNum\"><Data ss:Type=\"Number\">{0:F2}</Data></Cell>", rRes.Far));
+                sb.AppendLine(string.Format("    <Cell ss:StyleID=\"CellNum\"><Data ss:Type=\"Number\">{0:F2}</Data></Cell>", r.ResidentialZfa));
+                sb.AppendLine(string.Format("    <Cell ss:StyleID=\"CellNum\"><Data ss:Type=\"Number\">{0:F2}</Data></Cell>", r.CommercialZfa));
+                sb.AppendLine(string.Format("    <Cell ss:StyleID=\"CellNum\"><Data ss:Type=\"Number\">{0:F2}</Data></Cell>", r.TotalZfa));
 
-                sb.AppendLine(string.Format("    <Cell ss:StyleID=\"CellNum\"><Data ss:Type=\"Number\">{0:F2}</Data></Cell>", rCom.GrossFloorArea));
-                sb.AppendLine(string.Format("    <Cell ss:StyleID=\"CellNum\"><Data ss:Type=\"Number\">{0:F2}</Data></Cell>", rCom.UlebAmount));
-                sb.AppendLine(string.Format("    <Cell ss:StyleID=\"CellNum\"><Data ss:Type=\"Number\">{0:F2}</Data></Cell>", rCom.ZoningFloorArea));
-                sb.AppendLine(string.Format("    <Cell ss:StyleID=\"CellNum\"><Data ss:Type=\"Number\">{0:F2}</Data></Cell>", rCom.Far));
-
-                sb.AppendLine(string.Format("    <Cell ss:StyleID=\"CellNum\"><Data ss:Type=\"Number\">{0:F2}</Data></Cell>", totalZfa));
-                sb.AppendLine(string.Format("    <Cell ss:StyleID=\"CellNum\"><Data ss:Type=\"Number\">{0:F2}</Data></Cell>", totalFar));
-
+                sb.AppendLine(string.Format("    <Cell ss:StyleID=\"CellNum\"><Data ss:Type=\"Number\">{0:F2}</Data></Cell>", r.ResidentialFar));
+                sb.AppendLine(string.Format("    <Cell ss:StyleID=\"CellNum\"><Data ss:Type=\"Number\">{0:F2}</Data></Cell>", r.CommercialFar));
+                sb.AppendLine(string.Format("    <Cell ss:StyleID=\"CellNum\"><Data ss:Type=\"Number\">{0:F2}</Data></Cell>", r.TotalFar));
                 sb.AppendLine("   </Row>");
             }
 
-            LevelZoningRow sRes = table.ResidentialSubtotal;
-            LevelZoningRow sCom = table.CommercialSubtotal;
-            double subTotalZfa = sRes.ZoningFloorArea + sCom.ZoningFloorArea;
-            double subTotalFar = sRes.Far + sCom.Far;
-
-            sb.AppendLine("   <Row ss:Height=\"20\">");
-            sb.AppendLine("    <Cell ss:StyleID=\"CellSubtotal\"><Data ss:Type=\"String\">SUBTOTAL</Data></Cell>");
-            sb.AppendLine(string.Format("    <Cell ss:StyleID=\"CellSubtotal\"><Data ss:Type=\"Number\">{0:F2}</Data></Cell>", sRes.GrossFloorArea));
-            foreach (string cat in table.DeductionCategories)
-            {
-                sb.AppendLine(string.Format("    <Cell ss:StyleID=\"CellSubtotal\"><Data ss:Type=\"Number\">{0:F2}</Data></Cell>", sRes.GetDeduction(cat)));
-            }
-            sb.AppendLine(string.Format("    <Cell ss:StyleID=\"CellSubtotal\"><Data ss:Type=\"Number\">{0:F2}</Data></Cell>", sRes.NetArea));
-            sb.AppendLine(string.Format("    <Cell ss:StyleID=\"CellSubtotal\"><Data ss:Type=\"Number\">{0:F2}</Data></Cell>", sRes.UlebAmount));
-            sb.AppendLine(string.Format("    <Cell ss:StyleID=\"CellSubtotal\"><Data ss:Type=\"Number\">{0:F2}</Data></Cell>", sRes.ZoningFloorArea));
-            sb.AppendLine(string.Format("    <Cell ss:StyleID=\"CellSubtotal\"><Data ss:Type=\"Number\">{0:F2}</Data></Cell>", sRes.Far));
-
-            sb.AppendLine(string.Format("    <Cell ss:StyleID=\"CellSubtotal\"><Data ss:Type=\"Number\">{0:F2}</Data></Cell>", sCom.GrossFloorArea));
-            sb.AppendLine(string.Format("    <Cell ss:StyleID=\"CellSubtotal\"><Data ss:Type=\"Number\">{0:F2}</Data></Cell>", sCom.UlebAmount));
-            sb.AppendLine(string.Format("    <Cell ss:StyleID=\"CellSubtotal\"><Data ss:Type=\"Number\">{0:F2}</Data></Cell>", sCom.ZoningFloorArea));
-            sb.AppendLine(string.Format("    <Cell ss:StyleID=\"CellSubtotal\"><Data ss:Type=\"Number\">{0:F2}</Data></Cell>", sCom.Far));
-
-            sb.AppendLine(string.Format("    <Cell ss:StyleID=\"CellSubtotal\"><Data ss:Type=\"Number\">{0:F2}</Data></Cell>", subTotalZfa));
-            sb.AppendLine(string.Format("    <Cell ss:StyleID=\"CellSubtotal\"><Data ss:Type=\"Number\">{0:F2}</Data></Cell>", subTotalFar));
-            sb.AppendLine("   </Row>");
-
-            LevelZoningRow gTot = table.GrandTotal;
+            // Bottom TOTALS Row
+            LevelZoningRow tot = table.TotalsRow ?? new LevelZoningRow { LevelName = "TOTALS" };
             sb.AppendLine("   <Row ss:Height=\"22\">");
-            sb.AppendLine("    <Cell ss:StyleID=\"CellTotal\"><Data ss:Type=\"String\">TOTAL</Data></Cell>");
-            sb.AppendLine(string.Format("    <Cell ss:StyleID=\"CellTotal\"><Data ss:Type=\"Number\">{0:F2}</Data></Cell>", gTot.GrossFloorArea));
+            sb.AppendLine("    <Cell ss:StyleID=\"CellTotal\"><Data ss:Type=\"String\">TOTALS</Data></Cell>");
+            sb.AppendLine(string.Format("    <Cell ss:StyleID=\"CellTotal\"><Data ss:Type=\"Number\">{0:F2}</Data></Cell>", tot.ResidentialGrossFloorArea));
+            sb.AppendLine(string.Format("    <Cell ss:StyleID=\"CellTotal\"><Data ss:Type=\"Number\">{0:F2}</Data></Cell>", tot.CommercialGrossFloorArea));
+
             foreach (string cat in table.DeductionCategories)
             {
-                sb.AppendLine(string.Format("    <Cell ss:StyleID=\"CellTotal\"><Data ss:Type=\"Number\">{0:F2}</Data></Cell>", gTot.GetDeduction(cat)));
+                double val = tot.GetDeduction(cat);
+                sb.AppendLine(string.Format("    <Cell ss:StyleID=\"CellTotal\"><Data ss:Type=\"Number\">{0:F2}</Data></Cell>", val));
             }
-            sb.AppendLine(string.Format("    <Cell ss:StyleID=\"CellTotal\"><Data ss:Type=\"Number\">{0:F2}</Data></Cell>", gTot.NetArea));
-            sb.AppendLine(string.Format("    <Cell ss:StyleID=\"CellTotal\"><Data ss:Type=\"Number\">{0:F2}</Data></Cell>", gTot.UlebAmount));
-            sb.AppendLine(string.Format("    <Cell ss:StyleID=\"CellTotal\"><Data ss:Type=\"Number\">{0:F2}</Data></Cell>", gTot.ZoningFloorArea));
-            sb.AppendLine(string.Format("    <Cell ss:StyleID=\"CellTotal\"><Data ss:Type=\"Number\">{0:F2}</Data></Cell>", gTot.Far));
 
-            sb.AppendLine(string.Format("    <Cell ss:StyleID=\"CellTotal\"><Data ss:Type=\"Number\">{0:F2}</Data></Cell>", sCom.GrossFloorArea));
-            sb.AppendLine(string.Format("    <Cell ss:StyleID=\"CellTotal\"><Data ss:Type=\"Number\">{0:F2}</Data></Cell>", sCom.UlebAmount));
-            sb.AppendLine(string.Format("    <Cell ss:StyleID=\"CellTotal\"><Data ss:Type=\"Number\">{0:F2}</Data></Cell>", sCom.ZoningFloorArea));
-            sb.AppendLine(string.Format("    <Cell ss:StyleID=\"CellTotal\"><Data ss:Type=\"Number\">{0:F2}</Data></Cell>", sCom.Far));
+            sb.AppendLine(string.Format("    <Cell ss:StyleID=\"CellTotal\"><Data ss:Type=\"Number\">{0:F2}</Data></Cell>", tot.ResidentialZfa));
+            sb.AppendLine(string.Format("    <Cell ss:StyleID=\"CellTotal\"><Data ss:Type=\"Number\">{0:F2}</Data></Cell>", tot.CommercialZfa));
+            sb.AppendLine(string.Format("    <Cell ss:StyleID=\"CellTotal\"><Data ss:Type=\"Number\">{0:F2}</Data></Cell>", tot.TotalZfa));
 
-            sb.AppendLine(string.Format("    <Cell ss:StyleID=\"CellTotal\"><Data ss:Type=\"Number\">{0:F2}</Data></Cell>", table.TotalZoningFloorArea));
-            sb.AppendLine(string.Format("    <Cell ss:StyleID=\"CellTotal\"><Data ss:Type=\"Number\">{0:F2}</Data></Cell>", table.TotalFar));
+            sb.AppendLine(string.Format("    <Cell ss:StyleID=\"CellTotal\"><Data ss:Type=\"Number\">{0:F2}</Data></Cell>", tot.ResidentialFar));
+            sb.AppendLine(string.Format("    <Cell ss:StyleID=\"CellTotal\"><Data ss:Type=\"Number\">{0:F2}</Data></Cell>", tot.CommercialFar));
+            sb.AppendLine(string.Format("    <Cell ss:StyleID=\"CellTotal\"><Data ss:Type=\"Number\">{0:F2}</Data></Cell>", tot.TotalFar));
             sb.AppendLine("   </Row>");
 
             sb.AppendLine("  </Table>");
@@ -6742,18 +6819,23 @@ namespace ZoningFloorArea.Services
                 draftingView.Scale = 1;
 
                 double colWidthLevel = 1.0;
-                double colWidthGross = 1.3;
-                double colWidthDed = 1.1;
-                double colWidthNet = 1.2;
-                double colWidthUleb = 1.1;
-                double colWidthZfa = 1.4;
-                double colWidthFar = 0.8;
+                double colWidthResGross = 1.2;
+                double colWidthComGross = 1.2;
+                double colWidthDed = 1.0;
+                double colWidthResZfa = 1.1;
+                double colWidthComZfa = 1.1;
+                double colWidthTotZfa = 1.2;
+                double colWidthResFar = 0.8;
+                double colWidthComFar = 0.8;
+                double colWidthTotFar = 0.9;
 
                 int dedCount = table.DeductionCategories.Count;
 
-                double resWidth = colWidthLevel + colWidthGross + (dedCount * colWidthDed) + colWidthNet + colWidthUleb + colWidthZfa + colWidthFar;
-                double comWidth = colWidthGross + colWidthUleb + colWidthZfa + colWidthFar;
-                double totalWidth = resWidth + comWidth + colWidthZfa + colWidthFar;
+                double propWidth = colWidthResGross + colWidthComGross;
+                double dedsSpanWidth = dedCount * colWidthDed;
+                double zfaWidth = colWidthResZfa + colWidthComZfa + colWidthTotZfa;
+                double farWidth = colWidthResFar + colWidthComFar + colWidthTotFar;
+                double totalWidth = colWidthLevel + propWidth + dedsSpanWidth + zfaWidth + farWidth;
 
                 double rowHeight = 0.3;
                 double headerHeight = 0.4;
@@ -6762,151 +6844,104 @@ namespace ZoningFloorArea.Services
 
                 ElementId textTypeId = _doc.GetDefaultElementTypeId(ElementTypeGroup.TextNoteType);
 
-                // Title
+                // Row 1: Title Header
                 DrawRectangle(_doc, draftingView, startX, currentY - headerHeight, totalWidth, headerHeight);
                 CreateCellText(_doc, draftingView, startX, currentY - headerHeight, totalWidth, headerHeight,
-                    string.Format("FLOOR AREA CALCULATIONS - {0}", table.BuildingName.ToUpper()), textTypeId, HorizontalTextAlignment.Center, true);
+                    "FLOOR AREA CALCULATIONS", textTypeId, HorizontalTextAlignment.Center, true);
 
                 currentY -= headerHeight;
 
-                // Headers
-                DrawRectangle(_doc, draftingView, startX, currentY - headerHeight, resWidth, headerHeight);
-                CreateCellText(_doc, draftingView, startX, currentY - headerHeight, resWidth, headerHeight, "RESIDENTIAL", textTypeId, HorizontalTextAlignment.Center, true);
+                // Row 2: Top Grouping Headers (PROPOSED, DEDUCTIONS, ZFA, FAR)
+                double xHdr = startX;
+                DrawRectangle(_doc, draftingView, xHdr, currentY - headerHeight, colWidthLevel, headerHeight);
+                xHdr += colWidthLevel;
 
-                DrawRectangle(_doc, draftingView, startX + resWidth, currentY - headerHeight, comWidth, headerHeight);
-                CreateCellText(_doc, draftingView, startX + resWidth, currentY - headerHeight, comWidth, headerHeight, "COMMERCIAL", textTypeId, HorizontalTextAlignment.Center, true);
+                DrawRectangle(_doc, draftingView, xHdr, currentY - headerHeight, propWidth, headerHeight);
+                CreateCellText(_doc, draftingView, xHdr, currentY - headerHeight, propWidth, headerHeight, "PROPOSED", textTypeId, HorizontalTextAlignment.Center, true);
+                xHdr += propWidth;
 
-                DrawRectangle(_doc, draftingView, startX + resWidth + comWidth, currentY - headerHeight, colWidthZfa, headerHeight);
-                CreateCellText(_doc, draftingView, startX + resWidth + comWidth, currentY - headerHeight, colWidthZfa, headerHeight, "TOTAL ZONING FLOOR AREA", textTypeId, HorizontalTextAlignment.Center, true);
+                DrawRectangle(_doc, draftingView, xHdr, currentY - headerHeight, dedsSpanWidth, headerHeight);
+                CreateCellText(_doc, draftingView, xHdr, currentY - headerHeight, dedsSpanWidth, headerHeight, "DEDUCTIONS", textTypeId, HorizontalTextAlignment.Center, true);
+                xHdr += dedsSpanWidth;
 
-                DrawRectangle(_doc, draftingView, startX + resWidth + comWidth + colWidthZfa, currentY - headerHeight, colWidthFar, headerHeight);
-                CreateCellText(_doc, draftingView, startX + resWidth + comWidth + colWidthZfa, currentY - headerHeight, colWidthFar, headerHeight, "TOTAL FAR", textTypeId, HorizontalTextAlignment.Center, true);
+                DrawRectangle(_doc, draftingView, xHdr, currentY - headerHeight, zfaWidth, headerHeight);
+                CreateCellText(_doc, draftingView, xHdr, currentY - headerHeight, zfaWidth, headerHeight, "ZFA", textTypeId, HorizontalTextAlignment.Center, true);
+                xHdr += zfaWidth;
+
+                DrawRectangle(_doc, draftingView, xHdr, currentY - headerHeight, farWidth, headerHeight);
+                CreateCellText(_doc, draftingView, xHdr, currentY - headerHeight, farWidth, headerHeight, "FAR", textTypeId, HorizontalTextAlignment.Center, true);
 
                 currentY -= headerHeight;
 
-                // Sub-headers
+                // Row 3: Sub-headers
                 double xCursor = startX;
 
                 xCursor = DrawColumnHeader(_doc, draftingView, xCursor, currentY, colWidthLevel, headerHeight, "LEVEL", textTypeId);
-                xCursor = DrawColumnHeader(_doc, draftingView, xCursor, currentY, colWidthGross, headerHeight, "GROSS FLOOR\nAREA", textTypeId);
+                xCursor = DrawColumnHeader(_doc, draftingView, xCursor, currentY, colWidthResGross, headerHeight, "RESIDENTIAL\nGFA", textTypeId);
+                xCursor = DrawColumnHeader(_doc, draftingView, xCursor, currentY, colWidthComGross, headerHeight, "COMMERCIAL\nGFA", textTypeId);
 
-                double dedsSpanWidth = dedCount * colWidthDed;
-                DrawRectangle(_doc, draftingView, xCursor, currentY, dedsSpanWidth, headerHeight / 2);
-                CreateCellText(_doc, draftingView, xCursor, currentY, dedsSpanWidth, headerHeight / 2, "DEDUCTIONS", textTypeId, HorizontalTextAlignment.Center, true);
-
-                double dedX = xCursor;
                 foreach (string cat in table.DeductionCategories)
                 {
-                    dedX = DrawColumnHeader(_doc, draftingView, dedX, currentY - headerHeight / 2, colWidthDed, headerHeight / 2, cat, textTypeId);
+                    xCursor = DrawColumnHeader(_doc, draftingView, xCursor, currentY, colWidthDed, headerHeight, cat, textTypeId);
                 }
-                xCursor += dedsSpanWidth;
 
-                xCursor = DrawColumnHeader(_doc, draftingView, xCursor, currentY, colWidthNet, headerHeight, "NET AREA", textTypeId);
-                xCursor = DrawColumnHeader(_doc, draftingView, xCursor, currentY, colWidthUleb, headerHeight, string.Format("{0}% ULEB", (int)(table.UlebPercent * 100)), textTypeId);
-                xCursor = DrawColumnHeader(_doc, draftingView, xCursor, currentY, colWidthZfa, headerHeight, "ZONING FLOOR\nAREA", textTypeId);
-                xCursor = DrawColumnHeader(_doc, draftingView, xCursor, currentY, colWidthFar, headerHeight, "FAR", textTypeId);
+                xCursor = DrawColumnHeader(_doc, draftingView, xCursor, currentY, colWidthResZfa, headerHeight, "RESIDENTIAL", textTypeId);
+                xCursor = DrawColumnHeader(_doc, draftingView, xCursor, currentY, colWidthComZfa, headerHeight, "COMMERCIAL", textTypeId);
+                xCursor = DrawColumnHeader(_doc, draftingView, xCursor, currentY, colWidthTotZfa, headerHeight, "TOTAL ZFA", textTypeId);
 
-                xCursor = DrawColumnHeader(_doc, draftingView, xCursor, currentY, colWidthGross, headerHeight, "GROSS FLOOR\nAREA", textTypeId);
-                xCursor = DrawColumnHeader(_doc, draftingView, xCursor, currentY, colWidthUleb, headerHeight, string.Format("{0}% ULEB", (int)(table.UlebPercent * 100)), textTypeId);
-                xCursor = DrawColumnHeader(_doc, draftingView, xCursor, currentY, colWidthZfa, headerHeight, "ZONING FLOOR\nAREA", textTypeId);
-                xCursor = DrawColumnHeader(_doc, draftingView, xCursor, currentY, colWidthFar, headerHeight, "FAR", textTypeId);
-
-                xCursor = DrawColumnHeader(_doc, draftingView, xCursor, currentY, colWidthZfa, headerHeight, "TOTAL ZFA", textTypeId);
-                xCursor = DrawColumnHeader(_doc, draftingView, xCursor, currentY, colWidthFar, headerHeight, "TOTAL FAR", textTypeId);
+                xCursor = DrawColumnHeader(_doc, draftingView, xCursor, currentY, colWidthResFar, headerHeight, "RESIDENTIAL", textTypeId);
+                xCursor = DrawColumnHeader(_doc, draftingView, xCursor, currentY, colWidthComFar, headerHeight, "COMMERCIAL", textTypeId);
+                xCursor = DrawColumnHeader(_doc, draftingView, xCursor, currentY, colWidthTotFar, headerHeight, "TOTAL FAR", textTypeId);
 
                 currentY -= headerHeight;
 
-                // Data Rows
-                int rowCount = Math.Max(table.ResidentialRows.Count, table.CommercialRows.Count);
-
-                for (int i = 0; i < rowCount; i++)
+                // Data Rows (1 per level)
+                foreach (LevelZoningRow r in table.Rows)
                 {
-                    LevelZoningRow rRes = i < table.ResidentialRows.Count ? table.ResidentialRows[i] : new LevelZoningRow();
-                    LevelZoningRow rCom = i < table.CommercialRows.Count ? table.CommercialRows[i] : new LevelZoningRow();
-
                     xCursor = startX;
 
-                    xCursor = DrawCell(_doc, draftingView, xCursor, currentY - rowHeight, colWidthLevel, rowHeight, rRes.LevelName, textTypeId, HorizontalTextAlignment.Center, false);
-                    xCursor = DrawCell(_doc, draftingView, xCursor, currentY - rowHeight, colWidthGross, rowHeight, FormatNum(rRes.GrossFloorArea), textTypeId, HorizontalTextAlignment.Right, false);
+                    xCursor = DrawCell(_doc, draftingView, xCursor, currentY - rowHeight, colWidthLevel, rowHeight, r.LevelName, textTypeId, HorizontalTextAlignment.Center, false);
+                    xCursor = DrawCell(_doc, draftingView, xCursor, currentY - rowHeight, colWidthResGross, rowHeight, FormatNum(r.ResidentialGrossFloorArea), textTypeId, HorizontalTextAlignment.Right, false);
+                    xCursor = DrawCell(_doc, draftingView, xCursor, currentY - rowHeight, colWidthComGross, rowHeight, FormatNum(r.CommercialGrossFloorArea), textTypeId, HorizontalTextAlignment.Right, false);
 
                     foreach (string cat in table.DeductionCategories)
                     {
-                        double val = rRes.GetDeduction(cat);
+                        double val = r.GetDeduction(cat);
                         xCursor = DrawCell(_doc, draftingView, xCursor, currentY - rowHeight, colWidthDed, rowHeight, FormatNum(val), textTypeId, HorizontalTextAlignment.Right, false);
                     }
 
-                    xCursor = DrawCell(_doc, draftingView, xCursor, currentY - rowHeight, colWidthNet, rowHeight, FormatNum(rRes.NetArea), textTypeId, HorizontalTextAlignment.Right, false);
-                    xCursor = DrawCell(_doc, draftingView, xCursor, currentY - rowHeight, colWidthUleb, rowHeight, FormatNum(rRes.UlebAmount), textTypeId, HorizontalTextAlignment.Right, false);
-                    xCursor = DrawCell(_doc, draftingView, xCursor, currentY - rowHeight, colWidthZfa, rowHeight, FormatNum(rRes.ZoningFloorArea), textTypeId, HorizontalTextAlignment.Right, false);
-                    xCursor = DrawCell(_doc, draftingView, xCursor, currentY - rowHeight, colWidthFar, rowHeight, FormatNum(rRes.Far), textTypeId, HorizontalTextAlignment.Right, false);
+                    xCursor = DrawCell(_doc, draftingView, xCursor, currentY - rowHeight, colWidthResZfa, rowHeight, FormatNum(r.ResidentialZfa), textTypeId, HorizontalTextAlignment.Right, false);
+                    xCursor = DrawCell(_doc, draftingView, xCursor, currentY - rowHeight, colWidthComZfa, rowHeight, FormatNum(r.CommercialZfa), textTypeId, HorizontalTextAlignment.Right, false);
+                    xCursor = DrawCell(_doc, draftingView, xCursor, currentY - rowHeight, colWidthTotZfa, rowHeight, FormatNum(r.TotalZfa), textTypeId, HorizontalTextAlignment.Right, true);
 
-                    xCursor = DrawCell(_doc, draftingView, xCursor, currentY - rowHeight, colWidthGross, rowHeight, FormatNum(rCom.GrossFloorArea), textTypeId, HorizontalTextAlignment.Right, false);
-                    xCursor = DrawCell(_doc, draftingView, xCursor, currentY - rowHeight, colWidthUleb, rowHeight, FormatNum(rCom.UlebAmount), textTypeId, HorizontalTextAlignment.Right, false);
-                    xCursor = DrawCell(_doc, draftingView, xCursor, currentY - rowHeight, colWidthZfa, rowHeight, FormatNum(rCom.ZoningFloorArea), textTypeId, HorizontalTextAlignment.Right, false);
-                    xCursor = DrawCell(_doc, draftingView, xCursor, currentY - rowHeight, colWidthFar, rowHeight, FormatNum(rCom.Far), textTypeId, HorizontalTextAlignment.Right, false);
-
-                    double totZfa = rRes.ZoningFloorArea + rCom.ZoningFloorArea;
-                    double totFar = rRes.Far + rCom.Far;
-                    xCursor = DrawCell(_doc, draftingView, xCursor, currentY - rowHeight, colWidthZfa, rowHeight, FormatNum(totZfa), textTypeId, HorizontalTextAlignment.Right, false);
-                    xCursor = DrawCell(_doc, draftingView, xCursor, currentY - rowHeight, colWidthFar, rowHeight, FormatNum(totFar), textTypeId, HorizontalTextAlignment.Right, false);
+                    xCursor = DrawCell(_doc, draftingView, xCursor, currentY - rowHeight, colWidthResFar, rowHeight, FormatNum(r.ResidentialFar), textTypeId, HorizontalTextAlignment.Right, false);
+                    xCursor = DrawCell(_doc, draftingView, xCursor, currentY - rowHeight, colWidthComFar, rowHeight, FormatNum(r.CommercialFar), textTypeId, HorizontalTextAlignment.Right, false);
+                    xCursor = DrawCell(_doc, draftingView, xCursor, currentY - rowHeight, colWidthTotFar, rowHeight, FormatNum(r.TotalFar), textTypeId, HorizontalTextAlignment.Right, true);
 
                     currentY -= rowHeight;
                 }
 
-                // Subtotal
-                LevelZoningRow sRes = table.ResidentialSubtotal;
-                LevelZoningRow sCom = table.CommercialSubtotal;
+                // Bottom Row: TOTALS
+                LevelZoningRow tot = table.TotalsRow ?? new LevelZoningRow { LevelName = "TOTALS" };
                 xCursor = startX;
 
-                xCursor = DrawCell(_doc, draftingView, xCursor, currentY - rowHeight, colWidthLevel, rowHeight, "SUBTOTAL", textTypeId, HorizontalTextAlignment.Center, true);
-                xCursor = DrawCell(_doc, draftingView, xCursor, currentY - rowHeight, colWidthGross, rowHeight, FormatNum(sRes.GrossFloorArea), textTypeId, HorizontalTextAlignment.Right, true);
+                xCursor = DrawCell(_doc, draftingView, xCursor, currentY - rowHeight, colWidthLevel, rowHeight, "TOTALS", textTypeId, HorizontalTextAlignment.Center, true);
+                xCursor = DrawCell(_doc, draftingView, xCursor, currentY - rowHeight, colWidthResGross, rowHeight, FormatNum(tot.ResidentialGrossFloorArea), textTypeId, HorizontalTextAlignment.Right, true);
+                xCursor = DrawCell(_doc, draftingView, xCursor, currentY - rowHeight, colWidthComGross, rowHeight, FormatNum(tot.CommercialGrossFloorArea), textTypeId, HorizontalTextAlignment.Right, true);
 
                 foreach (string cat in table.DeductionCategories)
                 {
-                    xCursor = DrawCell(_doc, draftingView, xCursor, currentY - rowHeight, colWidthDed, rowHeight, FormatNum(sRes.GetDeduction(cat)), textTypeId, HorizontalTextAlignment.Right, true);
+                    double val = tot.GetDeduction(cat);
+                    xCursor = DrawCell(_doc, draftingView, xCursor, currentY - rowHeight, colWidthDed, rowHeight, FormatNum(val), textTypeId, HorizontalTextAlignment.Right, true);
                 }
 
-                xCursor = DrawCell(_doc, draftingView, xCursor, currentY - rowHeight, colWidthNet, rowHeight, FormatNum(sRes.NetArea), textTypeId, HorizontalTextAlignment.Right, true);
-                xCursor = DrawCell(_doc, draftingView, xCursor, currentY - rowHeight, colWidthUleb, rowHeight, FormatNum(sRes.UlebAmount), textTypeId, HorizontalTextAlignment.Right, true);
-                xCursor = DrawCell(_doc, draftingView, xCursor, currentY - rowHeight, colWidthZfa, rowHeight, FormatNum(sRes.ZoningFloorArea), textTypeId, HorizontalTextAlignment.Right, true);
-                xCursor = DrawCell(_doc, draftingView, xCursor, currentY - rowHeight, colWidthFar, rowHeight, FormatNum(sRes.Far), textTypeId, HorizontalTextAlignment.Right, true);
+                xCursor = DrawCell(_doc, draftingView, xCursor, currentY - rowHeight, colWidthResZfa, rowHeight, FormatNum(tot.ResidentialZfa), textTypeId, HorizontalTextAlignment.Right, true);
+                xCursor = DrawCell(_doc, draftingView, xCursor, currentY - rowHeight, colWidthComZfa, rowHeight, FormatNum(tot.CommercialZfa), textTypeId, HorizontalTextAlignment.Right, true);
+                xCursor = DrawCell(_doc, draftingView, xCursor, currentY - rowHeight, colWidthTotZfa, rowHeight, FormatNum(tot.TotalZfa), textTypeId, HorizontalTextAlignment.Right, true);
 
-                xCursor = DrawCell(_doc, draftingView, xCursor, currentY - rowHeight, colWidthGross, rowHeight, FormatNum(sCom.GrossFloorArea), textTypeId, HorizontalTextAlignment.Right, true);
-                xCursor = DrawCell(_doc, draftingView, xCursor, currentY - rowHeight, colWidthUleb, rowHeight, FormatNum(sCom.UlebAmount), textTypeId, HorizontalTextAlignment.Right, true);
-                xCursor = DrawCell(_doc, draftingView, xCursor, currentY - rowHeight, colWidthZfa, rowHeight, FormatNum(sCom.ZoningFloorArea), textTypeId, HorizontalTextAlignment.Right, true);
-                xCursor = DrawCell(_doc, draftingView, xCursor, currentY - rowHeight, colWidthFar, rowHeight, FormatNum(sCom.Far), textTypeId, HorizontalTextAlignment.Right, true);
-
-                double subTotZfa = sRes.ZoningFloorArea + sCom.ZoningFloorArea;
-                double subTotFar = sRes.Far + sCom.Far;
-                xCursor = DrawCell(_doc, draftingView, xCursor, currentY - rowHeight, colWidthZfa, rowHeight, FormatNum(subTotZfa), textTypeId, HorizontalTextAlignment.Right, true);
-                xCursor = DrawCell(_doc, draftingView, xCursor, currentY - rowHeight, colWidthFar, rowHeight, FormatNum(subTotFar), textTypeId, HorizontalTextAlignment.Right, true);
-
-                currentY -= rowHeight;
-
-                // Grand Total
-                LevelZoningRow gTot = table.GrandTotal;
-                xCursor = startX;
-
-                xCursor = DrawCell(_doc, draftingView, xCursor, currentY - rowHeight, colWidthLevel, rowHeight, "TOTAL", textTypeId, HorizontalTextAlignment.Center, true);
-                xCursor = DrawCell(_doc, draftingView, xCursor, currentY - rowHeight, colWidthGross, rowHeight, FormatNum(gTot.GrossFloorArea), textTypeId, HorizontalTextAlignment.Right, true);
-
-                foreach (string cat in table.DeductionCategories)
-                {
-                    xCursor = DrawCell(_doc, draftingView, xCursor, currentY - rowHeight, colWidthDed, rowHeight, FormatNum(gTot.GetDeduction(cat)), textTypeId, HorizontalTextAlignment.Right, true);
-                }
-
-                xCursor = DrawCell(_doc, draftingView, xCursor, currentY - rowHeight, colWidthNet, rowHeight, FormatNum(gTot.NetArea), textTypeId, HorizontalTextAlignment.Right, true);
-                xCursor = DrawCell(_doc, draftingView, xCursor, currentY - rowHeight, colWidthUleb, rowHeight, FormatNum(gTot.UlebAmount), textTypeId, HorizontalTextAlignment.Right, true);
-                xCursor = DrawCell(_doc, draftingView, xCursor, currentY - rowHeight, colWidthZfa, rowHeight, FormatNum(gTot.ZoningFloorArea), textTypeId, HorizontalTextAlignment.Right, true);
-                xCursor = DrawCell(_doc, draftingView, xCursor, currentY - rowHeight, colWidthFar, rowHeight, FormatNum(gTot.Far), textTypeId, HorizontalTextAlignment.Right, true);
-
-                xCursor = DrawCell(_doc, draftingView, xCursor, currentY - rowHeight, colWidthGross, rowHeight, FormatNum(sCom.GrossFloorArea), textTypeId, HorizontalTextAlignment.Right, true);
-                xCursor = DrawCell(_doc, draftingView, xCursor, currentY - rowHeight, colWidthUleb, rowHeight, FormatNum(sCom.UlebAmount), textTypeId, HorizontalTextAlignment.Right, true);
-                xCursor = DrawCell(_doc, draftingView, xCursor, currentY - rowHeight, colWidthZfa, rowHeight, FormatNum(sCom.ZoningFloorArea), textTypeId, HorizontalTextAlignment.Right, true);
-                xCursor = DrawCell(_doc, draftingView, xCursor, currentY - rowHeight, colWidthFar, rowHeight, FormatNum(sCom.Far), textTypeId, HorizontalTextAlignment.Right, true);
-
-                xCursor = DrawCell(_doc, draftingView, xCursor, currentY - rowHeight, colWidthZfa, rowHeight, FormatNum(table.TotalZoningFloorArea), textTypeId, HorizontalTextAlignment.Right, true);
-                xCursor = DrawCell(_doc, draftingView, xCursor, currentY - rowHeight, colWidthFar, rowHeight, FormatNum(table.TotalFar), textTypeId, HorizontalTextAlignment.Right, true);
+                xCursor = DrawCell(_doc, draftingView, xCursor, currentY - rowHeight, colWidthResFar, rowHeight, FormatNum(tot.ResidentialFar), textTypeId, HorizontalTextAlignment.Right, true);
+                xCursor = DrawCell(_doc, draftingView, xCursor, currentY - rowHeight, colWidthComFar, rowHeight, FormatNum(tot.CommercialFar), textTypeId, HorizontalTextAlignment.Right, true);
+                xCursor = DrawCell(_doc, draftingView, xCursor, currentY - rowHeight, colWidthTotFar, rowHeight, FormatNum(tot.TotalFar), textTypeId, HorizontalTextAlignment.Right, true);
 
                 tx.Commit();
                 return draftingView;
@@ -8088,15 +8123,16 @@ namespace ZoningFloorArea.Services
                 }
             }
 
-            // 2. Base Deduction Categories
+            // 2. Base Deduction Categories matching standard NYC Zoning template
             List<string> baseCategories = new List<string>
             {
-                "CHASE WALLS",
+                "CHASE WALL",
                 "STAIRS",
-                "MECHANICAL",
+                "PARKING",
                 "BYCYCLE PARKING",
                 "AMENITIES",
                 "CORRIDOR",
+                "MECH ROOM",
                 "REFUSE"
             };
 
@@ -8106,11 +8142,11 @@ namespace ZoningFloorArea.Services
             {
                 if (!string.IsNullOrEmpty(d.DeductionType))
                 {
-                    string trimmedType = d.DeductionType.Trim().ToUpperInvariant();
+                    string normalized = NormalizeCategoryName(d.DeductionType);
                     bool exists = false;
                     foreach (string cat in finalCategories)
                     {
-                        if (string.Equals(cat, trimmedType, StringComparison.OrdinalIgnoreCase))
+                        if (string.Equals(cat, normalized, StringComparison.OrdinalIgnoreCase))
                         {
                             exists = true;
                             break;
@@ -8118,7 +8154,7 @@ namespace ZoningFloorArea.Services
                     }
                     if (!exists)
                     {
-                        finalCategories.Add(trimmedType);
+                        finalCategories.Add(normalized);
                     }
                 }
             }
@@ -8144,16 +8180,15 @@ namespace ZoningFloorArea.Services
                 return result;
             }
 
-            // 4. Build Level Rows for Residential and Commercial
-            List<LevelZoningRow> resRows = new List<LevelZoningRow>();
-            List<LevelZoningRow> comRows = new List<LevelZoningRow>();
+            // 4. Build Unified Level Rows (1 row per level)
+            List<LevelZoningRow> rows = new List<LevelZoningRow>();
 
             foreach (string lvlName in levelNames)
             {
                 double lvlElev = levelElevations[lvlName];
                 TypicalFloorGroup matchingGroup = FindMatchingGroup(lvlName, lvlElev, levelElevations, groups);
 
-                // Residential Row
+                // Residential Gross
                 double resGrossSqFt = 0;
                 foreach (AreaDataModel a in grossAreas)
                 {
@@ -8164,38 +8199,7 @@ namespace ZoningFloorArea.Services
                     }
                 }
 
-                LevelZoningRow resRow = new LevelZoningRow();
-                resRow.LevelName = lvlName;
-                resRow.LevelElevation = lvlElev;
-                resRow.UsageCategory = "Residential";
-                resRow.GrossFloorArea = resGrossSqFt * unitFactor;
-                resRow.UlebPercent = config.UlebPercent;
-                resRow.LotArea = lotAreaConverted;
-
-                if (matchingGroup != null)
-                {
-                    resRow.GroupName = matchingGroup.Name;
-                    resRow.GroupColorHex = matchingGroup.ColorHex;
-                }
-
-                foreach (string cat in result.DeductionCategories)
-                {
-                    double dedSqFt = 0;
-                    foreach (AreaDataModel d in deductionAreas)
-                    {
-                        if (string.Equals(d.LevelName, lvlName, StringComparison.OrdinalIgnoreCase) &&
-                            string.Equals(d.UsageCategory, "Residential", StringComparison.OrdinalIgnoreCase) &&
-                            string.Equals(d.DeductionType, cat, StringComparison.OrdinalIgnoreCase))
-                        {
-                            dedSqFt += d.AreaValue;
-                        }
-                    }
-                    resRow.SetDeduction(cat, dedSqFt * unitFactor);
-                }
-
-                resRows.Add(resRow);
-
-                // Commercial Row
+                // Commercial Gross
                 double comGrossSqFt = 0;
                 foreach (AreaDataModel a in grossAreas)
                 {
@@ -8206,47 +8210,113 @@ namespace ZoningFloorArea.Services
                     }
                 }
 
-                LevelZoningRow comRow = new LevelZoningRow();
-                comRow.LevelName = lvlName;
-                comRow.LevelElevation = lvlElev;
-                comRow.UsageCategory = "Commercial";
-                comRow.GrossFloorArea = comGrossSqFt * unitFactor;
-                comRow.UlebPercent = config.UlebPercent;
-                comRow.LotArea = lotAreaConverted;
+                LevelZoningRow row = new LevelZoningRow();
+                row.LevelName = lvlName;
+                row.LevelElevation = lvlElev;
+                row.ResidentialGrossFloorArea = resGrossSqFt * unitFactor;
+                row.CommercialGrossFloorArea = comGrossSqFt * unitFactor;
+                row.UlebPercent = config.UlebPercent;
+                row.LotArea = lotAreaConverted;
 
                 if (matchingGroup != null)
                 {
-                    comRow.GroupName = matchingGroup.Name;
-                    comRow.GroupColorHex = matchingGroup.ColorHex;
+                    row.GroupName = matchingGroup.Name;
+                    row.GroupColorHex = matchingGroup.ColorHex;
                 }
+
+                // Deductions per category
+                foreach (string cat in result.DeductionCategories)
+                {
+                    double resDedSqFt = 0;
+                    double comDedSqFt = 0;
+
+                    foreach (AreaDataModel d in deductionAreas)
+                    {
+                        if (string.Equals(d.LevelName, lvlName, StringComparison.OrdinalIgnoreCase))
+                        {
+                            string norm = NormalizeCategoryName(d.DeductionType);
+                            if (string.Equals(norm, cat, StringComparison.OrdinalIgnoreCase))
+                            {
+                                if (string.Equals(d.UsageCategory, "Commercial", StringComparison.OrdinalIgnoreCase))
+                                {
+                                    comDedSqFt += d.AreaValue;
+                                }
+                                else
+                                {
+                                    resDedSqFt += d.AreaValue;
+                                }
+                            }
+                        }
+                    }
+
+                    row.SetResidentialDeduction(cat, resDedSqFt * unitFactor);
+                    row.SetCommercialDeduction(cat, comDedSqFt * unitFactor);
+                }
+
+                rows.Add(row);
+            }
+
+            result.Rows = rows;
+
+            // 5. Calculate TOTALS Row
+            LevelZoningRow totals = new LevelZoningRow();
+            totals.LevelName = "TOTALS";
+            totals.GroupName = "TOTALS";
+            totals.UlebPercent = config.UlebPercent;
+            totals.LotArea = lotAreaConverted;
+
+            double totResGross = 0;
+            double totComGross = 0;
+            Dictionary<string, double> totResDeds = new Dictionary<string, double>(StringComparer.OrdinalIgnoreCase);
+            Dictionary<string, double> totComDeds = new Dictionary<string, double>(StringComparer.OrdinalIgnoreCase);
+
+            foreach (string cat in result.DeductionCategories)
+            {
+                totResDeds[cat] = 0;
+                totComDeds[cat] = 0;
+            }
+
+            foreach (LevelZoningRow r in rows)
+            {
+                totResGross += r.ResidentialGrossFloorArea;
+                totComGross += r.CommercialGrossFloorArea;
 
                 foreach (string cat in result.DeductionCategories)
                 {
-                    double dedSqFt = 0;
-                    foreach (AreaDataModel d in deductionAreas)
-                    {
-                        if (string.Equals(d.LevelName, lvlName, StringComparison.OrdinalIgnoreCase) &&
-                            string.Equals(d.UsageCategory, "Commercial", StringComparison.OrdinalIgnoreCase) &&
-                            string.Equals(d.DeductionType, cat, StringComparison.OrdinalIgnoreCase))
-                        {
-                            dedSqFt += d.AreaValue;
-                        }
-                    }
-                    comRow.SetDeduction(cat, dedSqFt * unitFactor);
+                    totResDeds[cat] += r.ResidentialDeductions.ContainsKey(cat) ? r.ResidentialDeductions[cat] : 0;
+                    totComDeds[cat] += r.CommercialDeductions.ContainsKey(cat) ? r.CommercialDeductions[cat] : 0;
                 }
-
-                comRows.Add(comRow);
             }
 
-            result.ResidentialRows = resRows;
-            result.CommercialRows = comRows;
+            totals.ResidentialGrossFloorArea = totResGross;
+            totals.CommercialGrossFloorArea = totComGross;
 
-            // 5. Calculate Subtotals and Grand Total
-            result.ResidentialSubtotal = CalculateSubtotal("SUBTOTAL", "Residential", resRows, result.DeductionCategories, config.UlebPercent, lotAreaConverted);
-            result.CommercialSubtotal = CalculateSubtotal("SUBTOTAL", "Commercial", comRows, result.DeductionCategories, config.UlebPercent, lotAreaConverted);
-            result.GrandTotal = CalculateGrandTotal("TOTAL", result.ResidentialSubtotal, result.CommercialSubtotal, result.DeductionCategories, config.UlebPercent, lotAreaConverted);
+            foreach (string cat in result.DeductionCategories)
+            {
+                totals.SetResidentialDeduction(cat, totResDeds[cat]);
+                totals.SetCommercialDeduction(cat, totComDeds[cat]);
+            }
+
+            result.TotalsRow = totals;
 
             return result;
+        }
+
+        private string NormalizeCategoryName(string raw)
+        {
+            if (string.IsNullOrWhiteSpace(raw)) return string.Empty;
+            string t = raw.Trim().ToUpperInvariant();
+
+            if (t == "CHASE WALLS" || t == "CHASE" || t == "SHAFTS" || t == "SHAFT") return "CHASE WALL";
+            if (t == "STAIR" || t == "STAIRWELL" || t == "STAIRWAY") return "STAIRS";
+            if (t == "PARKING" || t == "GARAGE") return "PARKING";
+            if (t == "BICYCLE" || t == "BICYCLE PARKING" || t == "BIKE" || t == "BIKE PARKING") return "BYCYCLE PARKING";
+            if (t == "AMENITY" || t == "AMENITIES") return "AMENITIES";
+            if (t == "CORRIDORS" || t == "HALLWAY") return "CORRIDOR";
+            if (t == "MECHANICAL" || t == "MECH" || t == "HVAC" || t == "BOILER") return "MECH ROOM";
+            if (t == "TRASH" || t == "GARBAGE" || t == "COMPACTOR") return "REFUSE";
+
+            return t;
         }
 
         private TypicalFloorGroup FindMatchingGroup(string lvlName, double lvlElev, Dictionary<string, double> levelElevations, List<TypicalFloorGroup> groups)
@@ -8298,89 +8368,42 @@ namespace ZoningFloorArea.Services
             Dictionary<string, double> resDeds = new Dictionary<string, double>(StringComparer.OrdinalIgnoreCase);
             Dictionary<string, double> comDeds = new Dictionary<string, double>(StringComparer.OrdinalIgnoreCase);
 
+            foreach (string cat in summary.DeductionCategories)
+            {
+                resDeds[cat] = 0;
+                comDeds[cat] = 0;
+            }
+
             foreach (ZoningTableResult t in bldgTables)
             {
-                resGross += t.ResidentialSubtotal.GrossFloorArea;
-                comGross += t.CommercialSubtotal.GrossFloorArea;
+                if (t.TotalsRow == null) continue;
+                resGross += t.TotalsRow.ResidentialGrossFloorArea;
+                comGross += t.TotalsRow.CommercialGrossFloorArea;
 
                 foreach (string cat in summary.DeductionCategories)
                 {
-                    if (!resDeds.ContainsKey(cat)) resDeds[cat] = 0;
-                    if (!comDeds.ContainsKey(cat)) comDeds[cat] = 0;
-
-                    resDeds[cat] += t.ResidentialSubtotal.GetDeduction(cat);
-                    comDeds[cat] += t.CommercialSubtotal.GetDeduction(cat);
+                    resDeds[cat] += t.TotalsRow.ResidentialDeductions.ContainsKey(cat) ? t.TotalsRow.ResidentialDeductions[cat] : 0;
+                    comDeds[cat] += t.TotalsRow.CommercialDeductions.ContainsKey(cat) ? t.TotalsRow.CommercialDeductions[cat] : 0;
                 }
             }
 
-            summary.ResidentialSubtotal.GrossFloorArea = resGross;
-            summary.CommercialSubtotal.GrossFloorArea = comGross;
+            summary.TotalsRow = new LevelZoningRow
+            {
+                LevelName = "TOTALS",
+                GroupName = "TOTALS",
+                ResidentialGrossFloorArea = resGross,
+                CommercialGrossFloorArea = comGross,
+                UlebPercent = config.UlebPercent,
+                LotArea = config.LotArea
+            };
 
             foreach (string cat in summary.DeductionCategories)
             {
-                summary.ResidentialSubtotal.SetDeduction(cat, resDeds[cat]);
-                summary.CommercialSubtotal.SetDeduction(cat, comDeds[cat]);
-            }
-
-            summary.GrandTotal.GrossFloorArea = resGross + comGross;
-            foreach (string cat in summary.DeductionCategories)
-            {
-                summary.GrandTotal.SetDeduction(cat, resDeds[cat] + comDeds[cat]);
+                summary.TotalsRow.SetResidentialDeduction(cat, resDeds[cat]);
+                summary.TotalsRow.SetCommercialDeduction(cat, comDeds[cat]);
             }
 
             return summary;
-        }
-
-        private LevelZoningRow CalculateSubtotal(string label, string usageCat, List<LevelZoningRow> rows, List<string> categories, double ulebPercent, double lotArea)
-        {
-            LevelZoningRow subtotal = new LevelZoningRow();
-            subtotal.LevelName = label;
-            subtotal.UsageCategory = usageCat;
-            subtotal.UlebPercent = ulebPercent;
-            subtotal.LotArea = lotArea;
-
-            double gross = 0;
-            Dictionary<string, double> dedSums = new Dictionary<string, double>(StringComparer.OrdinalIgnoreCase);
-            foreach (string cat in categories)
-            {
-                dedSums[cat] = 0;
-            }
-
-            foreach (LevelZoningRow r in rows)
-            {
-                gross += r.GrossFloorArea;
-                foreach (string cat in categories)
-                {
-                    dedSums[cat] += r.GetDeduction(cat);
-                }
-            }
-
-            subtotal.GrossFloorArea = gross;
-            foreach (string cat in categories)
-            {
-                subtotal.SetDeduction(cat, dedSums[cat]);
-            }
-
-            return subtotal;
-        }
-
-        private LevelZoningRow CalculateGrandTotal(string label, LevelZoningRow resSub, LevelZoningRow comSub, List<string> categories, double ulebPercent, double lotArea)
-        {
-            LevelZoningRow grandTotal = new LevelZoningRow();
-            grandTotal.LevelName = label;
-            grandTotal.UsageCategory = "Project Total";
-            grandTotal.UlebPercent = ulebPercent;
-            grandTotal.LotArea = lotArea;
-
-            grandTotal.GrossFloorArea = resSub.GrossFloorArea + comSub.GrossFloorArea;
-
-            foreach (string cat in categories)
-            {
-                double totalDed = resSub.GetDeduction(cat) + comSub.GetDeduction(cat);
-                grandTotal.SetDeduction(cat, totalDed);
-            }
-
-            return grandTotal;
         }
     }
 }
@@ -14201,7 +14224,7 @@ namespace ZoningFloorArea.Views
             {
                 Header = "Group",
                 Binding = new WpfBinding("GroupName"),
-                Width = new DataGridLength(110)
+                Width = new DataGridLength(100)
             };
             grid.Columns.Add(colGroup);
 
@@ -14211,84 +14234,111 @@ namespace ZoningFloorArea.Views
                 Header = "Level",
                 Binding = new WpfBinding("LevelName"),
                 FontWeight = FontWeights.SemiBold,
-                Width = new DataGridLength(120)
+                Width = new DataGridLength(110)
             };
             grid.Columns.Add(colLevel);
 
-            // 3. Gross Floor Area
-            DataGridTextColumn colGross = new DataGridTextColumn
+            // 3. Proposed GFA: Residential GFA
+            DataGridTextColumn colResGross = new DataGridTextColumn
             {
-                Header = "Gross Floor Area",
-                Binding = new WpfBinding("GrossFloorArea") { StringFormat = "{0:N2}" },
-                Width = new DataGridLength(120)
+                Header = "Residential GFA",
+                Binding = new WpfBinding("ResidentialGrossFloorArea") { StringFormat = "{0:N2}" },
+                Width = new DataGridLength(125)
             };
-            grid.Columns.Add(colGross);
+            grid.Columns.Add(colResGross);
 
-            // 4. Dynamic Deduction Columns
+            // 4. Proposed GFA: Commercial GFA
+            DataGridTextColumn colComGross = new DataGridTextColumn
+            {
+                Header = "Commercial GFA",
+                Binding = new WpfBinding("CommercialGrossFloorArea") { StringFormat = "{0:N2}" },
+                Width = new DataGridLength(125)
+            };
+            grid.Columns.Add(colComGross);
+
+            // 5. Dynamic Deduction Columns
             foreach (string cat in tableResult.DeductionCategories)
             {
                 DataGridTextColumn colDed = new DataGridTextColumn
                 {
                     Header = cat,
                     Binding = new WpfBinding("Deductions[" + cat + "]") { StringFormat = "{0:N2}" },
-                    Width = new DataGridLength(100)
+                    Width = new DataGridLength(105)
                 };
                 grid.Columns.Add(colDed);
             }
 
-            // 5. Total Deductions
-            DataGridTextColumn colTotDed = new DataGridTextColumn
+            // 6. ZFA Residential
+            DataGridTextColumn colResZfa = new DataGridTextColumn
             {
-                Header = "Total Deductions",
-                Binding = new WpfBinding("TotalDeductions") { StringFormat = "{0:N2}" },
-                Width = new DataGridLength(115)
-            };
-            grid.Columns.Add(colTotDed);
-
-            // 6. Net Area
-            DataGridTextColumn colNet = new DataGridTextColumn
-            {
-                Header = "Net Area",
-                Binding = new WpfBinding("NetArea") { StringFormat = "{0:N2}" },
+                Header = "Res ZFA",
+                Binding = new WpfBinding("ResidentialZfa") { StringFormat = "{0:N2}" },
                 Width = new DataGridLength(110)
             };
-            grid.Columns.Add(colNet);
+            grid.Columns.Add(colResZfa);
 
-            // 7. 5% ULEB
-            DataGridTextColumn colUleb = new DataGridTextColumn
+            // 7. ZFA Commercial
+            DataGridTextColumn colComZfa = new DataGridTextColumn
             {
-                Header = "5% ULEB",
-                Binding = new WpfBinding("UlebAmount") { StringFormat = "{0:N2}" },
-                Width = new DataGridLength(90)
+                Header = "Com ZFA",
+                Binding = new WpfBinding("CommercialZfa") { StringFormat = "{0:N2}" },
+                Width = new DataGridLength(110)
             };
-            grid.Columns.Add(colUleb);
+            grid.Columns.Add(colComZfa);
 
-            // 8. Zoning Floor Area
-            DataGridTextColumn colZfa = new DataGridTextColumn
+            // 8. Total ZFA
+            DataGridTextColumn colTotZfa = new DataGridTextColumn
             {
-                Header = "Zoning Floor Area",
-                Binding = new WpfBinding("ZoningFloorArea") { StringFormat = "{0:N2}" },
+                Header = "TOTAL ZFA",
+                Binding = new WpfBinding("TotalZfa") { StringFormat = "{0:N2}" },
                 FontWeight = FontWeights.Bold,
-                Width = new DataGridLength(130)
+                Width = new DataGridLength(125)
             };
-            grid.Columns.Add(colZfa);
+            grid.Columns.Add(colTotZfa);
 
-            // 9. FAR
-            DataGridTextColumn colFar = new DataGridTextColumn
+            // 9. FAR Residential
+            DataGridTextColumn colResFar = new DataGridTextColumn
             {
-                Header = "FAR",
-                Binding = new WpfBinding("Far") { StringFormat = "{0:N2}" },
-                Width = new DataGridLength(80)
+                Header = "Res FAR",
+                Binding = new WpfBinding("ResidentialFar") { StringFormat = "{0:N3}" },
+                Width = new DataGridLength(85)
             };
-            grid.Columns.Add(colFar);
+            grid.Columns.Add(colResFar);
+
+            // 10. FAR Commercial
+            DataGridTextColumn colComFar = new DataGridTextColumn
+            {
+                Header = "Com FAR",
+                Binding = new WpfBinding("CommercialFar") { StringFormat = "{0:N3}" },
+                Width = new DataGridLength(85)
+            };
+            grid.Columns.Add(colComFar);
+
+            // 11. Total FAR
+            DataGridTextColumn colTotFar = new DataGridTextColumn
+            {
+                Header = "TOTAL FAR",
+                Binding = new WpfBinding("TotalFar") { StringFormat = "{0:N3}" },
+                FontWeight = FontWeights.Bold,
+                Width = new DataGridLength(95)
+            };
+            grid.Columns.Add(colTotFar);
+
+            // Row styling for TOTALS
+            grid.LoadingRow += (s, e) =>
+            {
+                LevelZoningRow row = e.Row.DataContext as LevelZoningRow;
+                if (row != null && (row.LevelName == "TOTALS" || row.GroupName == "TOTALS"))
+                {
+                    e.Row.Background = new SolidColorBrush((WpfColor)ColorConverter.ConvertFromString("#F1F5F9"));
+                    e.Row.FontWeight = FontWeights.Bold;
+                }
+            };
 
             // Build Items Source
             List<LevelZoningRow> displayList = new List<LevelZoningRow>();
-            if (tableResult.ResidentialRows != null) displayList.AddRange(tableResult.ResidentialRows);
-            if (tableResult.ResidentialSubtotal != null) displayList.Add(tableResult.ResidentialSubtotal);
-            if (tableResult.CommercialRows != null) displayList.AddRange(tableResult.CommercialRows);
-            if (tableResult.CommercialSubtotal != null) displayList.Add(tableResult.CommercialSubtotal);
-            if (tableResult.GrandTotal != null) displayList.Add(tableResult.GrandTotal);
+            if (tableResult.Rows != null) displayList.AddRange(tableResult.Rows);
+            if (tableResult.TotalsRow != null) displayList.Add(tableResult.TotalsRow);
 
             grid.ItemsSource = displayList;
             scroll.Content = grid;

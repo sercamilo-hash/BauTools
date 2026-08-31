@@ -11,16 +11,79 @@ namespace ZoningFloorArea.Models
         public string GroupName { get; set; }
         public string GroupColorHex { get; set; }
 
-        public double GrossFloorArea { get; set; }
+        // Proposed GFA
+        public double ResidentialGrossFloorArea { get; set; }
+        public double CommercialGrossFloorArea { get; set; }
+        public double TotalGrossFloorArea
+        {
+            get { return ResidentialGrossFloorArea + CommercialGrossFloorArea; }
+        }
+
+        // Deductions
         public Dictionary<string, double> Deductions { get; set; }
+        public Dictionary<string, double> ResidentialDeductions { get; set; }
+        public Dictionary<string, double> CommercialDeductions { get; set; }
+
         public double TotalDeductions { get; set; }
+        public double TotalResidentialDeductions { get; set; }
+        public double TotalCommercialDeductions { get; set; }
+
+        public double UlebPercent { get; set; }
+        public double LotArea { get; set; }
+
+        // ZFA Calculations
+        public double ResidentialZfa
+        {
+            get
+            {
+                double net = Math.Max(0, ResidentialGrossFloorArea - TotalResidentialDeductions);
+                double uleb = net * UlebPercent;
+                return Math.Max(0, net - uleb);
+            }
+        }
+
+        public double CommercialZfa
+        {
+            get
+            {
+                double net = Math.Max(0, CommercialGrossFloorArea - TotalCommercialDeductions);
+                double uleb = net * UlebPercent;
+                return Math.Max(0, net - uleb);
+            }
+        }
+
+        public double TotalZfa
+        {
+            get { return ResidentialZfa + CommercialZfa; }
+        }
+
+        // FAR Calculations
+        public double ResidentialFar
+        {
+            get { return LotArea > 0 ? ResidentialZfa / LotArea : 0; }
+        }
+
+        public double CommercialFar
+        {
+            get { return LotArea > 0 ? CommercialZfa / LotArea : 0; }
+        }
+
+        public double TotalFar
+        {
+            get { return LotArea > 0 ? TotalZfa / LotArea : 0; }
+        }
+
+        // Backward compatibility
+        public double GrossFloorArea
+        {
+            get { return TotalGrossFloorArea; }
+            set { ResidentialGrossFloorArea = value; }
+        }
 
         public double NetArea
         {
-            get { return Math.Max(0, GrossFloorArea - TotalDeductions); }
+            get { return Math.Max(0, TotalGrossFloorArea - TotalDeductions); }
         }
-
-        public double UlebPercent { get; set; }
 
         public double UlebAmount
         {
@@ -29,14 +92,12 @@ namespace ZoningFloorArea.Models
 
         public double ZoningFloorArea
         {
-            get { return Math.Max(0, NetArea - UlebAmount); }
+            get { return TotalZfa; }
         }
-
-        public double LotArea { get; set; }
 
         public double Far
         {
-            get { return LotArea > 0 ? ZoningFloorArea / LotArea : 0; }
+            get { return TotalFar; }
         }
 
         public double this[string categoryName]
@@ -51,7 +112,9 @@ namespace ZoningFloorArea.Models
             GroupName = string.Empty;
             GroupColorHex = "#94A3B8";
             Deductions = new Dictionary<string, double>(StringComparer.OrdinalIgnoreCase);
-            UlebPercent = 0.05;
+            ResidentialDeductions = new Dictionary<string, double>(StringComparer.OrdinalIgnoreCase);
+            CommercialDeductions = new Dictionary<string, double>(StringComparer.OrdinalIgnoreCase);
+            UlebPercent = 0.0;
             LotArea = 1.0;
         }
 
@@ -69,6 +132,24 @@ namespace ZoningFloorArea.Models
             RecalculateTotalDeductions();
         }
 
+        public void SetResidentialDeduction(string categoryName, double val)
+        {
+            ResidentialDeductions[categoryName] = val;
+            double comVal = 0.0;
+            CommercialDeductions.TryGetValue(categoryName, out comVal);
+            Deductions[categoryName] = val + comVal;
+            RecalculateTotalDeductions();
+        }
+
+        public void SetCommercialDeduction(string categoryName, double val)
+        {
+            CommercialDeductions[categoryName] = val;
+            double resVal = 0.0;
+            ResidentialDeductions.TryGetValue(categoryName, out resVal);
+            Deductions[categoryName] = val + resVal;
+            RecalculateTotalDeductions();
+        }
+
         public void RecalculateTotalDeductions()
         {
             double sum = 0;
@@ -77,6 +158,20 @@ namespace ZoningFloorArea.Models
                 sum += kvp.Value;
             }
             TotalDeductions = sum;
+
+            double resSum = 0;
+            foreach (KeyValuePair<string, double> kvp in ResidentialDeductions)
+            {
+                resSum += kvp.Value;
+            }
+            TotalResidentialDeductions = resSum;
+
+            double comSum = 0;
+            foreach (KeyValuePair<string, double> kvp in CommercialDeductions)
+            {
+                comSum += kvp.Value;
+            }
+            TotalCommercialDeductions = comSum;
         }
     }
 }

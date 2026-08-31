@@ -49,18 +49,23 @@ namespace ZoningFloorArea.Services
                 draftingView.Scale = 1;
 
                 double colWidthLevel = 1.0;
-                double colWidthGross = 1.3;
-                double colWidthDed = 1.1;
-                double colWidthNet = 1.2;
-                double colWidthUleb = 1.1;
-                double colWidthZfa = 1.4;
-                double colWidthFar = 0.8;
+                double colWidthResGross = 1.2;
+                double colWidthComGross = 1.2;
+                double colWidthDed = 1.0;
+                double colWidthResZfa = 1.1;
+                double colWidthComZfa = 1.1;
+                double colWidthTotZfa = 1.2;
+                double colWidthResFar = 0.8;
+                double colWidthComFar = 0.8;
+                double colWidthTotFar = 0.9;
 
                 int dedCount = table.DeductionCategories.Count;
 
-                double resWidth = colWidthLevel + colWidthGross + (dedCount * colWidthDed) + colWidthNet + colWidthUleb + colWidthZfa + colWidthFar;
-                double comWidth = colWidthGross + colWidthUleb + colWidthZfa + colWidthFar;
-                double totalWidth = resWidth + comWidth + colWidthZfa + colWidthFar;
+                double propWidth = colWidthResGross + colWidthComGross;
+                double dedsSpanWidth = dedCount * colWidthDed;
+                double zfaWidth = colWidthResZfa + colWidthComZfa + colWidthTotZfa;
+                double farWidth = colWidthResFar + colWidthComFar + colWidthTotFar;
+                double totalWidth = colWidthLevel + propWidth + dedsSpanWidth + zfaWidth + farWidth;
 
                 double rowHeight = 0.3;
                 double headerHeight = 0.4;
@@ -69,151 +74,104 @@ namespace ZoningFloorArea.Services
 
                 ElementId textTypeId = _doc.GetDefaultElementTypeId(ElementTypeGroup.TextNoteType);
 
-                // Title
+                // Row 1: Title Header
                 DrawRectangle(_doc, draftingView, startX, currentY - headerHeight, totalWidth, headerHeight);
                 CreateCellText(_doc, draftingView, startX, currentY - headerHeight, totalWidth, headerHeight,
-                    string.Format("FLOOR AREA CALCULATIONS - {0}", table.BuildingName.ToUpper()), textTypeId, HorizontalTextAlignment.Center, true);
+                    "FLOOR AREA CALCULATIONS", textTypeId, HorizontalTextAlignment.Center, true);
 
                 currentY -= headerHeight;
 
-                // Headers
-                DrawRectangle(_doc, draftingView, startX, currentY - headerHeight, resWidth, headerHeight);
-                CreateCellText(_doc, draftingView, startX, currentY - headerHeight, resWidth, headerHeight, "RESIDENTIAL", textTypeId, HorizontalTextAlignment.Center, true);
+                // Row 2: Top Grouping Headers (PROPOSED, DEDUCTIONS, ZFA, FAR)
+                double xHdr = startX;
+                DrawRectangle(_doc, draftingView, xHdr, currentY - headerHeight, colWidthLevel, headerHeight);
+                xHdr += colWidthLevel;
 
-                DrawRectangle(_doc, draftingView, startX + resWidth, currentY - headerHeight, comWidth, headerHeight);
-                CreateCellText(_doc, draftingView, startX + resWidth, currentY - headerHeight, comWidth, headerHeight, "COMMERCIAL", textTypeId, HorizontalTextAlignment.Center, true);
+                DrawRectangle(_doc, draftingView, xHdr, currentY - headerHeight, propWidth, headerHeight);
+                CreateCellText(_doc, draftingView, xHdr, currentY - headerHeight, propWidth, headerHeight, "PROPOSED", textTypeId, HorizontalTextAlignment.Center, true);
+                xHdr += propWidth;
 
-                DrawRectangle(_doc, draftingView, startX + resWidth + comWidth, currentY - headerHeight, colWidthZfa, headerHeight);
-                CreateCellText(_doc, draftingView, startX + resWidth + comWidth, currentY - headerHeight, colWidthZfa, headerHeight, "TOTAL ZONING FLOOR AREA", textTypeId, HorizontalTextAlignment.Center, true);
+                DrawRectangle(_doc, draftingView, xHdr, currentY - headerHeight, dedsSpanWidth, headerHeight);
+                CreateCellText(_doc, draftingView, xHdr, currentY - headerHeight, dedsSpanWidth, headerHeight, "DEDUCTIONS", textTypeId, HorizontalTextAlignment.Center, true);
+                xHdr += dedsSpanWidth;
 
-                DrawRectangle(_doc, draftingView, startX + resWidth + comWidth + colWidthZfa, currentY - headerHeight, colWidthFar, headerHeight);
-                CreateCellText(_doc, draftingView, startX + resWidth + comWidth + colWidthZfa, currentY - headerHeight, colWidthFar, headerHeight, "TOTAL FAR", textTypeId, HorizontalTextAlignment.Center, true);
+                DrawRectangle(_doc, draftingView, xHdr, currentY - headerHeight, zfaWidth, headerHeight);
+                CreateCellText(_doc, draftingView, xHdr, currentY - headerHeight, zfaWidth, headerHeight, "ZFA", textTypeId, HorizontalTextAlignment.Center, true);
+                xHdr += zfaWidth;
+
+                DrawRectangle(_doc, draftingView, xHdr, currentY - headerHeight, farWidth, headerHeight);
+                CreateCellText(_doc, draftingView, xHdr, currentY - headerHeight, farWidth, headerHeight, "FAR", textTypeId, HorizontalTextAlignment.Center, true);
 
                 currentY -= headerHeight;
 
-                // Sub-headers
+                // Row 3: Sub-headers
                 double xCursor = startX;
 
                 xCursor = DrawColumnHeader(_doc, draftingView, xCursor, currentY, colWidthLevel, headerHeight, "LEVEL", textTypeId);
-                xCursor = DrawColumnHeader(_doc, draftingView, xCursor, currentY, colWidthGross, headerHeight, "GROSS FLOOR\nAREA", textTypeId);
+                xCursor = DrawColumnHeader(_doc, draftingView, xCursor, currentY, colWidthResGross, headerHeight, "RESIDENTIAL\nGFA", textTypeId);
+                xCursor = DrawColumnHeader(_doc, draftingView, xCursor, currentY, colWidthComGross, headerHeight, "COMMERCIAL\nGFA", textTypeId);
 
-                double dedsSpanWidth = dedCount * colWidthDed;
-                DrawRectangle(_doc, draftingView, xCursor, currentY, dedsSpanWidth, headerHeight / 2);
-                CreateCellText(_doc, draftingView, xCursor, currentY, dedsSpanWidth, headerHeight / 2, "DEDUCTIONS", textTypeId, HorizontalTextAlignment.Center, true);
-
-                double dedX = xCursor;
                 foreach (string cat in table.DeductionCategories)
                 {
-                    dedX = DrawColumnHeader(_doc, draftingView, dedX, currentY - headerHeight / 2, colWidthDed, headerHeight / 2, cat, textTypeId);
+                    xCursor = DrawColumnHeader(_doc, draftingView, xCursor, currentY, colWidthDed, headerHeight, cat, textTypeId);
                 }
-                xCursor += dedsSpanWidth;
 
-                xCursor = DrawColumnHeader(_doc, draftingView, xCursor, currentY, colWidthNet, headerHeight, "NET AREA", textTypeId);
-                xCursor = DrawColumnHeader(_doc, draftingView, xCursor, currentY, colWidthUleb, headerHeight, string.Format("{0}% ULEB", (int)(table.UlebPercent * 100)), textTypeId);
-                xCursor = DrawColumnHeader(_doc, draftingView, xCursor, currentY, colWidthZfa, headerHeight, "ZONING FLOOR\nAREA", textTypeId);
-                xCursor = DrawColumnHeader(_doc, draftingView, xCursor, currentY, colWidthFar, headerHeight, "FAR", textTypeId);
+                xCursor = DrawColumnHeader(_doc, draftingView, xCursor, currentY, colWidthResZfa, headerHeight, "RESIDENTIAL", textTypeId);
+                xCursor = DrawColumnHeader(_doc, draftingView, xCursor, currentY, colWidthComZfa, headerHeight, "COMMERCIAL", textTypeId);
+                xCursor = DrawColumnHeader(_doc, draftingView, xCursor, currentY, colWidthTotZfa, headerHeight, "TOTAL ZFA", textTypeId);
 
-                xCursor = DrawColumnHeader(_doc, draftingView, xCursor, currentY, colWidthGross, headerHeight, "GROSS FLOOR\nAREA", textTypeId);
-                xCursor = DrawColumnHeader(_doc, draftingView, xCursor, currentY, colWidthUleb, headerHeight, string.Format("{0}% ULEB", (int)(table.UlebPercent * 100)), textTypeId);
-                xCursor = DrawColumnHeader(_doc, draftingView, xCursor, currentY, colWidthZfa, headerHeight, "ZONING FLOOR\nAREA", textTypeId);
-                xCursor = DrawColumnHeader(_doc, draftingView, xCursor, currentY, colWidthFar, headerHeight, "FAR", textTypeId);
-
-                xCursor = DrawColumnHeader(_doc, draftingView, xCursor, currentY, colWidthZfa, headerHeight, "TOTAL ZFA", textTypeId);
-                xCursor = DrawColumnHeader(_doc, draftingView, xCursor, currentY, colWidthFar, headerHeight, "TOTAL FAR", textTypeId);
+                xCursor = DrawColumnHeader(_doc, draftingView, xCursor, currentY, colWidthResFar, headerHeight, "RESIDENTIAL", textTypeId);
+                xCursor = DrawColumnHeader(_doc, draftingView, xCursor, currentY, colWidthComFar, headerHeight, "COMMERCIAL", textTypeId);
+                xCursor = DrawColumnHeader(_doc, draftingView, xCursor, currentY, colWidthTotFar, headerHeight, "TOTAL FAR", textTypeId);
 
                 currentY -= headerHeight;
 
-                // Data Rows
-                int rowCount = Math.Max(table.ResidentialRows.Count, table.CommercialRows.Count);
-
-                for (int i = 0; i < rowCount; i++)
+                // Data Rows (1 per level)
+                foreach (LevelZoningRow r in table.Rows)
                 {
-                    LevelZoningRow rRes = i < table.ResidentialRows.Count ? table.ResidentialRows[i] : new LevelZoningRow();
-                    LevelZoningRow rCom = i < table.CommercialRows.Count ? table.CommercialRows[i] : new LevelZoningRow();
-
                     xCursor = startX;
 
-                    xCursor = DrawCell(_doc, draftingView, xCursor, currentY - rowHeight, colWidthLevel, rowHeight, rRes.LevelName, textTypeId, HorizontalTextAlignment.Center, false);
-                    xCursor = DrawCell(_doc, draftingView, xCursor, currentY - rowHeight, colWidthGross, rowHeight, FormatNum(rRes.GrossFloorArea), textTypeId, HorizontalTextAlignment.Right, false);
+                    xCursor = DrawCell(_doc, draftingView, xCursor, currentY - rowHeight, colWidthLevel, rowHeight, r.LevelName, textTypeId, HorizontalTextAlignment.Center, false);
+                    xCursor = DrawCell(_doc, draftingView, xCursor, currentY - rowHeight, colWidthResGross, rowHeight, FormatNum(r.ResidentialGrossFloorArea), textTypeId, HorizontalTextAlignment.Right, false);
+                    xCursor = DrawCell(_doc, draftingView, xCursor, currentY - rowHeight, colWidthComGross, rowHeight, FormatNum(r.CommercialGrossFloorArea), textTypeId, HorizontalTextAlignment.Right, false);
 
                     foreach (string cat in table.DeductionCategories)
                     {
-                        double val = rRes.GetDeduction(cat);
+                        double val = r.GetDeduction(cat);
                         xCursor = DrawCell(_doc, draftingView, xCursor, currentY - rowHeight, colWidthDed, rowHeight, FormatNum(val), textTypeId, HorizontalTextAlignment.Right, false);
                     }
 
-                    xCursor = DrawCell(_doc, draftingView, xCursor, currentY - rowHeight, colWidthNet, rowHeight, FormatNum(rRes.NetArea), textTypeId, HorizontalTextAlignment.Right, false);
-                    xCursor = DrawCell(_doc, draftingView, xCursor, currentY - rowHeight, colWidthUleb, rowHeight, FormatNum(rRes.UlebAmount), textTypeId, HorizontalTextAlignment.Right, false);
-                    xCursor = DrawCell(_doc, draftingView, xCursor, currentY - rowHeight, colWidthZfa, rowHeight, FormatNum(rRes.ZoningFloorArea), textTypeId, HorizontalTextAlignment.Right, false);
-                    xCursor = DrawCell(_doc, draftingView, xCursor, currentY - rowHeight, colWidthFar, rowHeight, FormatNum(rRes.Far), textTypeId, HorizontalTextAlignment.Right, false);
+                    xCursor = DrawCell(_doc, draftingView, xCursor, currentY - rowHeight, colWidthResZfa, rowHeight, FormatNum(r.ResidentialZfa), textTypeId, HorizontalTextAlignment.Right, false);
+                    xCursor = DrawCell(_doc, draftingView, xCursor, currentY - rowHeight, colWidthComZfa, rowHeight, FormatNum(r.CommercialZfa), textTypeId, HorizontalTextAlignment.Right, false);
+                    xCursor = DrawCell(_doc, draftingView, xCursor, currentY - rowHeight, colWidthTotZfa, rowHeight, FormatNum(r.TotalZfa), textTypeId, HorizontalTextAlignment.Right, true);
 
-                    xCursor = DrawCell(_doc, draftingView, xCursor, currentY - rowHeight, colWidthGross, rowHeight, FormatNum(rCom.GrossFloorArea), textTypeId, HorizontalTextAlignment.Right, false);
-                    xCursor = DrawCell(_doc, draftingView, xCursor, currentY - rowHeight, colWidthUleb, rowHeight, FormatNum(rCom.UlebAmount), textTypeId, HorizontalTextAlignment.Right, false);
-                    xCursor = DrawCell(_doc, draftingView, xCursor, currentY - rowHeight, colWidthZfa, rowHeight, FormatNum(rCom.ZoningFloorArea), textTypeId, HorizontalTextAlignment.Right, false);
-                    xCursor = DrawCell(_doc, draftingView, xCursor, currentY - rowHeight, colWidthFar, rowHeight, FormatNum(rCom.Far), textTypeId, HorizontalTextAlignment.Right, false);
-
-                    double totZfa = rRes.ZoningFloorArea + rCom.ZoningFloorArea;
-                    double totFar = rRes.Far + rCom.Far;
-                    xCursor = DrawCell(_doc, draftingView, xCursor, currentY - rowHeight, colWidthZfa, rowHeight, FormatNum(totZfa), textTypeId, HorizontalTextAlignment.Right, false);
-                    xCursor = DrawCell(_doc, draftingView, xCursor, currentY - rowHeight, colWidthFar, rowHeight, FormatNum(totFar), textTypeId, HorizontalTextAlignment.Right, false);
+                    xCursor = DrawCell(_doc, draftingView, xCursor, currentY - rowHeight, colWidthResFar, rowHeight, FormatNum(r.ResidentialFar), textTypeId, HorizontalTextAlignment.Right, false);
+                    xCursor = DrawCell(_doc, draftingView, xCursor, currentY - rowHeight, colWidthComFar, rowHeight, FormatNum(r.CommercialFar), textTypeId, HorizontalTextAlignment.Right, false);
+                    xCursor = DrawCell(_doc, draftingView, xCursor, currentY - rowHeight, colWidthTotFar, rowHeight, FormatNum(r.TotalFar), textTypeId, HorizontalTextAlignment.Right, true);
 
                     currentY -= rowHeight;
                 }
 
-                // Subtotal
-                LevelZoningRow sRes = table.ResidentialSubtotal;
-                LevelZoningRow sCom = table.CommercialSubtotal;
+                // Bottom Row: TOTALS
+                LevelZoningRow tot = table.TotalsRow ?? new LevelZoningRow { LevelName = "TOTALS" };
                 xCursor = startX;
 
-                xCursor = DrawCell(_doc, draftingView, xCursor, currentY - rowHeight, colWidthLevel, rowHeight, "SUBTOTAL", textTypeId, HorizontalTextAlignment.Center, true);
-                xCursor = DrawCell(_doc, draftingView, xCursor, currentY - rowHeight, colWidthGross, rowHeight, FormatNum(sRes.GrossFloorArea), textTypeId, HorizontalTextAlignment.Right, true);
+                xCursor = DrawCell(_doc, draftingView, xCursor, currentY - rowHeight, colWidthLevel, rowHeight, "TOTALS", textTypeId, HorizontalTextAlignment.Center, true);
+                xCursor = DrawCell(_doc, draftingView, xCursor, currentY - rowHeight, colWidthResGross, rowHeight, FormatNum(tot.ResidentialGrossFloorArea), textTypeId, HorizontalTextAlignment.Right, true);
+                xCursor = DrawCell(_doc, draftingView, xCursor, currentY - rowHeight, colWidthComGross, rowHeight, FormatNum(tot.CommercialGrossFloorArea), textTypeId, HorizontalTextAlignment.Right, true);
 
                 foreach (string cat in table.DeductionCategories)
                 {
-                    xCursor = DrawCell(_doc, draftingView, xCursor, currentY - rowHeight, colWidthDed, rowHeight, FormatNum(sRes.GetDeduction(cat)), textTypeId, HorizontalTextAlignment.Right, true);
+                    double val = tot.GetDeduction(cat);
+                    xCursor = DrawCell(_doc, draftingView, xCursor, currentY - rowHeight, colWidthDed, rowHeight, FormatNum(val), textTypeId, HorizontalTextAlignment.Right, true);
                 }
 
-                xCursor = DrawCell(_doc, draftingView, xCursor, currentY - rowHeight, colWidthNet, rowHeight, FormatNum(sRes.NetArea), textTypeId, HorizontalTextAlignment.Right, true);
-                xCursor = DrawCell(_doc, draftingView, xCursor, currentY - rowHeight, colWidthUleb, rowHeight, FormatNum(sRes.UlebAmount), textTypeId, HorizontalTextAlignment.Right, true);
-                xCursor = DrawCell(_doc, draftingView, xCursor, currentY - rowHeight, colWidthZfa, rowHeight, FormatNum(sRes.ZoningFloorArea), textTypeId, HorizontalTextAlignment.Right, true);
-                xCursor = DrawCell(_doc, draftingView, xCursor, currentY - rowHeight, colWidthFar, rowHeight, FormatNum(sRes.Far), textTypeId, HorizontalTextAlignment.Right, true);
+                xCursor = DrawCell(_doc, draftingView, xCursor, currentY - rowHeight, colWidthResZfa, rowHeight, FormatNum(tot.ResidentialZfa), textTypeId, HorizontalTextAlignment.Right, true);
+                xCursor = DrawCell(_doc, draftingView, xCursor, currentY - rowHeight, colWidthComZfa, rowHeight, FormatNum(tot.CommercialZfa), textTypeId, HorizontalTextAlignment.Right, true);
+                xCursor = DrawCell(_doc, draftingView, xCursor, currentY - rowHeight, colWidthTotZfa, rowHeight, FormatNum(tot.TotalZfa), textTypeId, HorizontalTextAlignment.Right, true);
 
-                xCursor = DrawCell(_doc, draftingView, xCursor, currentY - rowHeight, colWidthGross, rowHeight, FormatNum(sCom.GrossFloorArea), textTypeId, HorizontalTextAlignment.Right, true);
-                xCursor = DrawCell(_doc, draftingView, xCursor, currentY - rowHeight, colWidthUleb, rowHeight, FormatNum(sCom.UlebAmount), textTypeId, HorizontalTextAlignment.Right, true);
-                xCursor = DrawCell(_doc, draftingView, xCursor, currentY - rowHeight, colWidthZfa, rowHeight, FormatNum(sCom.ZoningFloorArea), textTypeId, HorizontalTextAlignment.Right, true);
-                xCursor = DrawCell(_doc, draftingView, xCursor, currentY - rowHeight, colWidthFar, rowHeight, FormatNum(sCom.Far), textTypeId, HorizontalTextAlignment.Right, true);
-
-                double subTotZfa = sRes.ZoningFloorArea + sCom.ZoningFloorArea;
-                double subTotFar = sRes.Far + sCom.Far;
-                xCursor = DrawCell(_doc, draftingView, xCursor, currentY - rowHeight, colWidthZfa, rowHeight, FormatNum(subTotZfa), textTypeId, HorizontalTextAlignment.Right, true);
-                xCursor = DrawCell(_doc, draftingView, xCursor, currentY - rowHeight, colWidthFar, rowHeight, FormatNum(subTotFar), textTypeId, HorizontalTextAlignment.Right, true);
-
-                currentY -= rowHeight;
-
-                // Grand Total
-                LevelZoningRow gTot = table.GrandTotal;
-                xCursor = startX;
-
-                xCursor = DrawCell(_doc, draftingView, xCursor, currentY - rowHeight, colWidthLevel, rowHeight, "TOTAL", textTypeId, HorizontalTextAlignment.Center, true);
-                xCursor = DrawCell(_doc, draftingView, xCursor, currentY - rowHeight, colWidthGross, rowHeight, FormatNum(gTot.GrossFloorArea), textTypeId, HorizontalTextAlignment.Right, true);
-
-                foreach (string cat in table.DeductionCategories)
-                {
-                    xCursor = DrawCell(_doc, draftingView, xCursor, currentY - rowHeight, colWidthDed, rowHeight, FormatNum(gTot.GetDeduction(cat)), textTypeId, HorizontalTextAlignment.Right, true);
-                }
-
-                xCursor = DrawCell(_doc, draftingView, xCursor, currentY - rowHeight, colWidthNet, rowHeight, FormatNum(gTot.NetArea), textTypeId, HorizontalTextAlignment.Right, true);
-                xCursor = DrawCell(_doc, draftingView, xCursor, currentY - rowHeight, colWidthUleb, rowHeight, FormatNum(gTot.UlebAmount), textTypeId, HorizontalTextAlignment.Right, true);
-                xCursor = DrawCell(_doc, draftingView, xCursor, currentY - rowHeight, colWidthZfa, rowHeight, FormatNum(gTot.ZoningFloorArea), textTypeId, HorizontalTextAlignment.Right, true);
-                xCursor = DrawCell(_doc, draftingView, xCursor, currentY - rowHeight, colWidthFar, rowHeight, FormatNum(gTot.Far), textTypeId, HorizontalTextAlignment.Right, true);
-
-                xCursor = DrawCell(_doc, draftingView, xCursor, currentY - rowHeight, colWidthGross, rowHeight, FormatNum(sCom.GrossFloorArea), textTypeId, HorizontalTextAlignment.Right, true);
-                xCursor = DrawCell(_doc, draftingView, xCursor, currentY - rowHeight, colWidthUleb, rowHeight, FormatNum(sCom.UlebAmount), textTypeId, HorizontalTextAlignment.Right, true);
-                xCursor = DrawCell(_doc, draftingView, xCursor, currentY - rowHeight, colWidthZfa, rowHeight, FormatNum(sCom.ZoningFloorArea), textTypeId, HorizontalTextAlignment.Right, true);
-                xCursor = DrawCell(_doc, draftingView, xCursor, currentY - rowHeight, colWidthFar, rowHeight, FormatNum(sCom.Far), textTypeId, HorizontalTextAlignment.Right, true);
-
-                xCursor = DrawCell(_doc, draftingView, xCursor, currentY - rowHeight, colWidthZfa, rowHeight, FormatNum(table.TotalZoningFloorArea), textTypeId, HorizontalTextAlignment.Right, true);
-                xCursor = DrawCell(_doc, draftingView, xCursor, currentY - rowHeight, colWidthFar, rowHeight, FormatNum(table.TotalFar), textTypeId, HorizontalTextAlignment.Right, true);
+                xCursor = DrawCell(_doc, draftingView, xCursor, currentY - rowHeight, colWidthResFar, rowHeight, FormatNum(tot.ResidentialFar), textTypeId, HorizontalTextAlignment.Right, true);
+                xCursor = DrawCell(_doc, draftingView, xCursor, currentY - rowHeight, colWidthComFar, rowHeight, FormatNum(tot.CommercialFar), textTypeId, HorizontalTextAlignment.Right, true);
+                xCursor = DrawCell(_doc, draftingView, xCursor, currentY - rowHeight, colWidthTotFar, rowHeight, FormatNum(tot.TotalFar), textTypeId, HorizontalTextAlignment.Right, true);
 
                 tx.Commit();
                 return draftingView;

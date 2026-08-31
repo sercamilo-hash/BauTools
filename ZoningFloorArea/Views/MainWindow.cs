@@ -2072,7 +2072,7 @@ namespace ZoningFloorArea.Views
             {
                 Header = "Group",
                 Binding = new WpfBinding("GroupName"),
-                Width = new DataGridLength(110)
+                Width = new DataGridLength(100)
             };
             grid.Columns.Add(colGroup);
 
@@ -2082,84 +2082,111 @@ namespace ZoningFloorArea.Views
                 Header = "Level",
                 Binding = new WpfBinding("LevelName"),
                 FontWeight = FontWeights.SemiBold,
-                Width = new DataGridLength(120)
+                Width = new DataGridLength(110)
             };
             grid.Columns.Add(colLevel);
 
-            // 3. Gross Floor Area
-            DataGridTextColumn colGross = new DataGridTextColumn
+            // 3. Proposed GFA: Residential GFA
+            DataGridTextColumn colResGross = new DataGridTextColumn
             {
-                Header = "Gross Floor Area",
-                Binding = new WpfBinding("GrossFloorArea") { StringFormat = "{0:N2}" },
-                Width = new DataGridLength(120)
+                Header = "Residential GFA",
+                Binding = new WpfBinding("ResidentialGrossFloorArea") { StringFormat = "{0:N2}" },
+                Width = new DataGridLength(125)
             };
-            grid.Columns.Add(colGross);
+            grid.Columns.Add(colResGross);
 
-            // 4. Dynamic Deduction Columns
+            // 4. Proposed GFA: Commercial GFA
+            DataGridTextColumn colComGross = new DataGridTextColumn
+            {
+                Header = "Commercial GFA",
+                Binding = new WpfBinding("CommercialGrossFloorArea") { StringFormat = "{0:N2}" },
+                Width = new DataGridLength(125)
+            };
+            grid.Columns.Add(colComGross);
+
+            // 5. Dynamic Deduction Columns
             foreach (string cat in tableResult.DeductionCategories)
             {
                 DataGridTextColumn colDed = new DataGridTextColumn
                 {
                     Header = cat,
                     Binding = new WpfBinding("Deductions[" + cat + "]") { StringFormat = "{0:N2}" },
-                    Width = new DataGridLength(100)
+                    Width = new DataGridLength(105)
                 };
                 grid.Columns.Add(colDed);
             }
 
-            // 5. Total Deductions
-            DataGridTextColumn colTotDed = new DataGridTextColumn
+            // 6. ZFA Residential
+            DataGridTextColumn colResZfa = new DataGridTextColumn
             {
-                Header = "Total Deductions",
-                Binding = new WpfBinding("TotalDeductions") { StringFormat = "{0:N2}" },
-                Width = new DataGridLength(115)
-            };
-            grid.Columns.Add(colTotDed);
-
-            // 6. Net Area
-            DataGridTextColumn colNet = new DataGridTextColumn
-            {
-                Header = "Net Area",
-                Binding = new WpfBinding("NetArea") { StringFormat = "{0:N2}" },
+                Header = "Res ZFA",
+                Binding = new WpfBinding("ResidentialZfa") { StringFormat = "{0:N2}" },
                 Width = new DataGridLength(110)
             };
-            grid.Columns.Add(colNet);
+            grid.Columns.Add(colResZfa);
 
-            // 7. 5% ULEB
-            DataGridTextColumn colUleb = new DataGridTextColumn
+            // 7. ZFA Commercial
+            DataGridTextColumn colComZfa = new DataGridTextColumn
             {
-                Header = "5% ULEB",
-                Binding = new WpfBinding("UlebAmount") { StringFormat = "{0:N2}" },
-                Width = new DataGridLength(90)
+                Header = "Com ZFA",
+                Binding = new WpfBinding("CommercialZfa") { StringFormat = "{0:N2}" },
+                Width = new DataGridLength(110)
             };
-            grid.Columns.Add(colUleb);
+            grid.Columns.Add(colComZfa);
 
-            // 8. Zoning Floor Area
-            DataGridTextColumn colZfa = new DataGridTextColumn
+            // 8. Total ZFA
+            DataGridTextColumn colTotZfa = new DataGridTextColumn
             {
-                Header = "Zoning Floor Area",
-                Binding = new WpfBinding("ZoningFloorArea") { StringFormat = "{0:N2}" },
+                Header = "TOTAL ZFA",
+                Binding = new WpfBinding("TotalZfa") { StringFormat = "{0:N2}" },
                 FontWeight = FontWeights.Bold,
-                Width = new DataGridLength(130)
+                Width = new DataGridLength(125)
             };
-            grid.Columns.Add(colZfa);
+            grid.Columns.Add(colTotZfa);
 
-            // 9. FAR
-            DataGridTextColumn colFar = new DataGridTextColumn
+            // 9. FAR Residential
+            DataGridTextColumn colResFar = new DataGridTextColumn
             {
-                Header = "FAR",
-                Binding = new WpfBinding("Far") { StringFormat = "{0:N2}" },
-                Width = new DataGridLength(80)
+                Header = "Res FAR",
+                Binding = new WpfBinding("ResidentialFar") { StringFormat = "{0:N3}" },
+                Width = new DataGridLength(85)
             };
-            grid.Columns.Add(colFar);
+            grid.Columns.Add(colResFar);
+
+            // 10. FAR Commercial
+            DataGridTextColumn colComFar = new DataGridTextColumn
+            {
+                Header = "Com FAR",
+                Binding = new WpfBinding("CommercialFar") { StringFormat = "{0:N3}" },
+                Width = new DataGridLength(85)
+            };
+            grid.Columns.Add(colComFar);
+
+            // 11. Total FAR
+            DataGridTextColumn colTotFar = new DataGridTextColumn
+            {
+                Header = "TOTAL FAR",
+                Binding = new WpfBinding("TotalFar") { StringFormat = "{0:N3}" },
+                FontWeight = FontWeights.Bold,
+                Width = new DataGridLength(95)
+            };
+            grid.Columns.Add(colTotFar);
+
+            // Row styling for TOTALS
+            grid.LoadingRow += (s, e) =>
+            {
+                LevelZoningRow row = e.Row.DataContext as LevelZoningRow;
+                if (row != null && (row.LevelName == "TOTALS" || row.GroupName == "TOTALS"))
+                {
+                    e.Row.Background = new SolidColorBrush((WpfColor)ColorConverter.ConvertFromString("#F1F5F9"));
+                    e.Row.FontWeight = FontWeights.Bold;
+                }
+            };
 
             // Build Items Source
             List<LevelZoningRow> displayList = new List<LevelZoningRow>();
-            if (tableResult.ResidentialRows != null) displayList.AddRange(tableResult.ResidentialRows);
-            if (tableResult.ResidentialSubtotal != null) displayList.Add(tableResult.ResidentialSubtotal);
-            if (tableResult.CommercialRows != null) displayList.AddRange(tableResult.CommercialRows);
-            if (tableResult.CommercialSubtotal != null) displayList.Add(tableResult.CommercialSubtotal);
-            if (tableResult.GrandTotal != null) displayList.Add(tableResult.GrandTotal);
+            if (tableResult.Rows != null) displayList.AddRange(tableResult.Rows);
+            if (tableResult.TotalsRow != null) displayList.Add(tableResult.TotalsRow);
 
             grid.ItemsSource = displayList;
             scroll.Content = grid;

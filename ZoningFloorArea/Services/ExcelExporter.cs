@@ -120,124 +120,87 @@ namespace ZoningFloorArea.Services
             sb.AppendLine(string.Format(" <Worksheet ss:Name=\"{0}\">", cleanSheetName));
             sb.AppendLine("  <Table>");
 
-            int totalCols = 2 + table.DeductionCategories.Count + 4 + 4 + 2;
-            sb.AppendLine("   <Row ss:Height=\"24\">");
-            sb.AppendLine(string.Format("    <Cell ss:MergeAcross=\"{0}\" ss:StyleID=\"HeaderMain\"><Data ss:Type=\"String\">FLOOR AREA CALCULATIONS - {1}</Data></Cell>", totalCols - 1, table.BuildingName.ToUpper()));
+            int dedCount = table.DeductionCategories.Count;
+            int totalCols = 1 + 2 + dedCount + 3 + 3;
+
+            // Row 1: Title Header
+            sb.AppendLine("   <Row ss:Height=\"26\">");
+            sb.AppendLine(string.Format("    <Cell ss:MergeAcross=\"{0}\" ss:StyleID=\"HeaderMain\"><Data ss:Type=\"String\">FLOOR AREA CALCULATIONS</Data></Cell>", totalCols - 1));
             sb.AppendLine("   </Row>");
 
-            int resColSpan = 2 + table.DeductionCategories.Count + 4;
+            // Row 2: Top Grouping Headers (PROPOSED, DEDUCTIONS, ZFA, FAR)
             sb.AppendLine("   <Row ss:Height=\"20\">");
-            sb.AppendLine(string.Format("    <Cell ss:MergeAcross=\"{0}\" ss:StyleID=\"HeaderSub\"><Data ss:Type=\"String\">RESIDENTIAL</Data></Cell>", resColSpan - 1));
-            sb.AppendLine("    <Cell ss:MergeAcross=\"3\" ss:StyleID=\"HeaderSub\"><Data ss:Type=\"String\">COMMERCIAL</Data></Cell>");
-            sb.AppendLine("    <Cell ss:StyleID=\"HeaderSub\"><Data ss:Type=\"String\">TOTAL ZONING FLOOR AREA</Data></Cell>");
-            sb.AppendLine("    <Cell ss:StyleID=\"HeaderSub\"><Data ss:Type=\"String\">TOTAL FAR</Data></Cell>");
+            sb.AppendLine("    <Cell ss:StyleID=\"HeaderSub\"><Data ss:Type=\"String\"></Data></Cell>"); // Level corner
+            sb.AppendLine("    <Cell ss:MergeAcross=\"1\" ss:StyleID=\"HeaderSub\"><Data ss:Type=\"String\">PROPOSED</Data></Cell>");
+            sb.AppendLine(string.Format("    <Cell ss:MergeAcross=\"{0}\" ss:StyleID=\"HeaderSub\"><Data ss:Type=\"String\">DEDUCTIONS</Data></Cell>", dedCount - 1));
+            sb.AppendLine("    <Cell ss:MergeAcross=\"2\" ss:StyleID=\"HeaderSub\"><Data ss:Type=\"String\">ZFA</Data></Cell>");
+            sb.AppendLine("    <Cell ss:MergeAcross=\"2\" ss:StyleID=\"HeaderSub\"><Data ss:Type=\"String\">FAR</Data></Cell>");
             sb.AppendLine("   </Row>");
 
+            // Row 3: Subheaders
             sb.AppendLine("   <Row ss:Height=\"24\">");
-            sb.AppendLine("    <Cell ss:StyleID=\"HeaderSub\"><Data ss:Type=\"String\">LEVEL</Data></Cell>");
-            sb.AppendLine("    <Cell ss:StyleID=\"HeaderSub\"><Data ss:Type=\"String\">GROSS FLOOR AREA</Data></Cell>");
+            sb.AppendLine("    <Cell ss:StyleID=\"HeaderSub\"><Data ss:Type=\"String\"></Data></Cell>");
+            sb.AppendLine("    <Cell ss:StyleID=\"HeaderSub\"><Data ss:Type=\"String\">RESIDENTIAL GFA</Data></Cell>");
+            sb.AppendLine("    <Cell ss:StyleID=\"HeaderSub\"><Data ss:Type=\"String\">COMMERCIAL GFA</Data></Cell>");
 
             foreach (string dedCat in table.DeductionCategories)
             {
                 sb.AppendLine(string.Format("    <Cell ss:StyleID=\"HeaderSub\"><Data ss:Type=\"String\">{0}</Data></Cell>", dedCat.ToUpper()));
             }
 
-            sb.AppendLine("    <Cell ss:StyleID=\"HeaderSub\"><Data ss:Type=\"String\">NET AREA</Data></Cell>");
-            sb.AppendLine(string.Format("    <Cell ss:StyleID=\"HeaderSub\"><Data ss:Type=\"String\">{0}% ULEB</Data></Cell>", (int)(table.UlebPercent * 100)));
-            sb.AppendLine("    <Cell ss:StyleID=\"HeaderSub\"><Data ss:Type=\"String\">ZONING FLOOR AREA</Data></Cell>");
-            sb.AppendLine("    <Cell ss:StyleID=\"HeaderSub\"><Data ss:Type=\"String\">FAR</Data></Cell>");
-
-            sb.AppendLine("    <Cell ss:StyleID=\"HeaderSub\"><Data ss:Type=\"String\">GROSS FLOOR AREA</Data></Cell>");
-            sb.AppendLine(string.Format("    <Cell ss:StyleID=\"HeaderSub\"><Data ss:Type=\"String\">{0}% ULEB</Data></Cell>", (int)(table.UlebPercent * 100)));
-            sb.AppendLine("    <Cell ss:StyleID=\"HeaderSub\"><Data ss:Type=\"String\">ZONING FLOOR AREA</Data></Cell>");
-            sb.AppendLine("    <Cell ss:StyleID=\"HeaderSub\"><Data ss:Type=\"String\">FAR</Data></Cell>");
-
+            sb.AppendLine("    <Cell ss:StyleID=\"HeaderSub\"><Data ss:Type=\"String\">RESIDENTIAL</Data></Cell>");
+            sb.AppendLine("    <Cell ss:StyleID=\"HeaderSub\"><Data ss:Type=\"String\">COMMERCIAL</Data></Cell>");
             sb.AppendLine("    <Cell ss:StyleID=\"HeaderSub\"><Data ss:Type=\"String\">TOTAL ZFA</Data></Cell>");
+
+            sb.AppendLine("    <Cell ss:StyleID=\"HeaderSub\"><Data ss:Type=\"String\">RESIDENTIAL</Data></Cell>");
+            sb.AppendLine("    <Cell ss:StyleID=\"HeaderSub\"><Data ss:Type=\"String\">COMMERCIAL</Data></Cell>");
             sb.AppendLine("    <Cell ss:StyleID=\"HeaderSub\"><Data ss:Type=\"String\">TOTAL FAR</Data></Cell>");
             sb.AppendLine("   </Row>");
 
-            int rowCount = Math.Max(table.ResidentialRows.Count, table.CommercialRows.Count);
-
-            for (int i = 0; i < rowCount; i++)
+            // Data Rows (1 per level)
+            foreach (LevelZoningRow r in table.Rows)
             {
-                LevelZoningRow rRes = i < table.ResidentialRows.Count ? table.ResidentialRows[i] : new LevelZoningRow();
-                LevelZoningRow rCom = i < table.CommercialRows.Count ? table.CommercialRows[i] : new LevelZoningRow();
-
-                double totalZfa = rRes.ZoningFloorArea + rCom.ZoningFloorArea;
-                double totalFar = rRes.Far + rCom.Far;
-
                 sb.AppendLine("   <Row ss:Height=\"18\">");
-                sb.AppendLine(string.Format("    <Cell ss:StyleID=\"CellNum\"><Data ss:Type=\"String\">{0}</Data></Cell>", rRes.LevelName));
-                sb.AppendLine(string.Format("    <Cell ss:StyleID=\"CellNum\"><Data ss:Type=\"Number\">{0:F2}</Data></Cell>", rRes.GrossFloorArea));
+                sb.AppendLine(string.Format("    <Cell ss:StyleID=\"CellNum\"><Data ss:Type=\"String\">{0}</Data></Cell>", r.LevelName));
+                sb.AppendLine(string.Format("    <Cell ss:StyleID=\"CellNum\"><Data ss:Type=\"Number\">{0:F2}</Data></Cell>", r.ResidentialGrossFloorArea));
+                sb.AppendLine(string.Format("    <Cell ss:StyleID=\"CellNum\"><Data ss:Type=\"Number\">{0:F2}</Data></Cell>", r.CommercialGrossFloorArea));
 
                 foreach (string cat in table.DeductionCategories)
                 {
-                    double val = rRes.GetDeduction(cat);
+                    double val = r.GetDeduction(cat);
                     sb.AppendLine(string.Format("    <Cell ss:StyleID=\"CellNum\"><Data ss:Type=\"Number\">{0:F2}</Data></Cell>", val));
                 }
 
-                sb.AppendLine(string.Format("    <Cell ss:StyleID=\"CellNum\"><Data ss:Type=\"Number\">{0:F2}</Data></Cell>", rRes.NetArea));
-                sb.AppendLine(string.Format("    <Cell ss:StyleID=\"CellNum\"><Data ss:Type=\"Number\">{0:F2}</Data></Cell>", rRes.UlebAmount));
-                sb.AppendLine(string.Format("    <Cell ss:StyleID=\"CellNum\"><Data ss:Type=\"Number\">{0:F2}</Data></Cell>", rRes.ZoningFloorArea));
-                sb.AppendLine(string.Format("    <Cell ss:StyleID=\"CellNum\"><Data ss:Type=\"Number\">{0:F2}</Data></Cell>", rRes.Far));
+                sb.AppendLine(string.Format("    <Cell ss:StyleID=\"CellNum\"><Data ss:Type=\"Number\">{0:F2}</Data></Cell>", r.ResidentialZfa));
+                sb.AppendLine(string.Format("    <Cell ss:StyleID=\"CellNum\"><Data ss:Type=\"Number\">{0:F2}</Data></Cell>", r.CommercialZfa));
+                sb.AppendLine(string.Format("    <Cell ss:StyleID=\"CellNum\"><Data ss:Type=\"Number\">{0:F2}</Data></Cell>", r.TotalZfa));
 
-                sb.AppendLine(string.Format("    <Cell ss:StyleID=\"CellNum\"><Data ss:Type=\"Number\">{0:F2}</Data></Cell>", rCom.GrossFloorArea));
-                sb.AppendLine(string.Format("    <Cell ss:StyleID=\"CellNum\"><Data ss:Type=\"Number\">{0:F2}</Data></Cell>", rCom.UlebAmount));
-                sb.AppendLine(string.Format("    <Cell ss:StyleID=\"CellNum\"><Data ss:Type=\"Number\">{0:F2}</Data></Cell>", rCom.ZoningFloorArea));
-                sb.AppendLine(string.Format("    <Cell ss:StyleID=\"CellNum\"><Data ss:Type=\"Number\">{0:F2}</Data></Cell>", rCom.Far));
-
-                sb.AppendLine(string.Format("    <Cell ss:StyleID=\"CellNum\"><Data ss:Type=\"Number\">{0:F2}</Data></Cell>", totalZfa));
-                sb.AppendLine(string.Format("    <Cell ss:StyleID=\"CellNum\"><Data ss:Type=\"Number\">{0:F2}</Data></Cell>", totalFar));
-
+                sb.AppendLine(string.Format("    <Cell ss:StyleID=\"CellNum\"><Data ss:Type=\"Number\">{0:F2}</Data></Cell>", r.ResidentialFar));
+                sb.AppendLine(string.Format("    <Cell ss:StyleID=\"CellNum\"><Data ss:Type=\"Number\">{0:F2}</Data></Cell>", r.CommercialFar));
+                sb.AppendLine(string.Format("    <Cell ss:StyleID=\"CellNum\"><Data ss:Type=\"Number\">{0:F2}</Data></Cell>", r.TotalFar));
                 sb.AppendLine("   </Row>");
             }
 
-            LevelZoningRow sRes = table.ResidentialSubtotal;
-            LevelZoningRow sCom = table.CommercialSubtotal;
-            double subTotalZfa = sRes.ZoningFloorArea + sCom.ZoningFloorArea;
-            double subTotalFar = sRes.Far + sCom.Far;
-
-            sb.AppendLine("   <Row ss:Height=\"20\">");
-            sb.AppendLine("    <Cell ss:StyleID=\"CellSubtotal\"><Data ss:Type=\"String\">SUBTOTAL</Data></Cell>");
-            sb.AppendLine(string.Format("    <Cell ss:StyleID=\"CellSubtotal\"><Data ss:Type=\"Number\">{0:F2}</Data></Cell>", sRes.GrossFloorArea));
-            foreach (string cat in table.DeductionCategories)
-            {
-                sb.AppendLine(string.Format("    <Cell ss:StyleID=\"CellSubtotal\"><Data ss:Type=\"Number\">{0:F2}</Data></Cell>", sRes.GetDeduction(cat)));
-            }
-            sb.AppendLine(string.Format("    <Cell ss:StyleID=\"CellSubtotal\"><Data ss:Type=\"Number\">{0:F2}</Data></Cell>", sRes.NetArea));
-            sb.AppendLine(string.Format("    <Cell ss:StyleID=\"CellSubtotal\"><Data ss:Type=\"Number\">{0:F2}</Data></Cell>", sRes.UlebAmount));
-            sb.AppendLine(string.Format("    <Cell ss:StyleID=\"CellSubtotal\"><Data ss:Type=\"Number\">{0:F2}</Data></Cell>", sRes.ZoningFloorArea));
-            sb.AppendLine(string.Format("    <Cell ss:StyleID=\"CellSubtotal\"><Data ss:Type=\"Number\">{0:F2}</Data></Cell>", sRes.Far));
-
-            sb.AppendLine(string.Format("    <Cell ss:StyleID=\"CellSubtotal\"><Data ss:Type=\"Number\">{0:F2}</Data></Cell>", sCom.GrossFloorArea));
-            sb.AppendLine(string.Format("    <Cell ss:StyleID=\"CellSubtotal\"><Data ss:Type=\"Number\">{0:F2}</Data></Cell>", sCom.UlebAmount));
-            sb.AppendLine(string.Format("    <Cell ss:StyleID=\"CellSubtotal\"><Data ss:Type=\"Number\">{0:F2}</Data></Cell>", sCom.ZoningFloorArea));
-            sb.AppendLine(string.Format("    <Cell ss:StyleID=\"CellSubtotal\"><Data ss:Type=\"Number\">{0:F2}</Data></Cell>", sCom.Far));
-
-            sb.AppendLine(string.Format("    <Cell ss:StyleID=\"CellSubtotal\"><Data ss:Type=\"Number\">{0:F2}</Data></Cell>", subTotalZfa));
-            sb.AppendLine(string.Format("    <Cell ss:StyleID=\"CellSubtotal\"><Data ss:Type=\"Number\">{0:F2}</Data></Cell>", subTotalFar));
-            sb.AppendLine("   </Row>");
-
-            LevelZoningRow gTot = table.GrandTotal;
+            // Bottom TOTALS Row
+            LevelZoningRow tot = table.TotalsRow ?? new LevelZoningRow { LevelName = "TOTALS" };
             sb.AppendLine("   <Row ss:Height=\"22\">");
-            sb.AppendLine("    <Cell ss:StyleID=\"CellTotal\"><Data ss:Type=\"String\">TOTAL</Data></Cell>");
-            sb.AppendLine(string.Format("    <Cell ss:StyleID=\"CellTotal\"><Data ss:Type=\"Number\">{0:F2}</Data></Cell>", gTot.GrossFloorArea));
+            sb.AppendLine("    <Cell ss:StyleID=\"CellTotal\"><Data ss:Type=\"String\">TOTALS</Data></Cell>");
+            sb.AppendLine(string.Format("    <Cell ss:StyleID=\"CellTotal\"><Data ss:Type=\"Number\">{0:F2}</Data></Cell>", tot.ResidentialGrossFloorArea));
+            sb.AppendLine(string.Format("    <Cell ss:StyleID=\"CellTotal\"><Data ss:Type=\"Number\">{0:F2}</Data></Cell>", tot.CommercialGrossFloorArea));
+
             foreach (string cat in table.DeductionCategories)
             {
-                sb.AppendLine(string.Format("    <Cell ss:StyleID=\"CellTotal\"><Data ss:Type=\"Number\">{0:F2}</Data></Cell>", gTot.GetDeduction(cat)));
+                double val = tot.GetDeduction(cat);
+                sb.AppendLine(string.Format("    <Cell ss:StyleID=\"CellTotal\"><Data ss:Type=\"Number\">{0:F2}</Data></Cell>", val));
             }
-            sb.AppendLine(string.Format("    <Cell ss:StyleID=\"CellTotal\"><Data ss:Type=\"Number\">{0:F2}</Data></Cell>", gTot.NetArea));
-            sb.AppendLine(string.Format("    <Cell ss:StyleID=\"CellTotal\"><Data ss:Type=\"Number\">{0:F2}</Data></Cell>", gTot.UlebAmount));
-            sb.AppendLine(string.Format("    <Cell ss:StyleID=\"CellTotal\"><Data ss:Type=\"Number\">{0:F2}</Data></Cell>", gTot.ZoningFloorArea));
-            sb.AppendLine(string.Format("    <Cell ss:StyleID=\"CellTotal\"><Data ss:Type=\"Number\">{0:F2}</Data></Cell>", gTot.Far));
 
-            sb.AppendLine(string.Format("    <Cell ss:StyleID=\"CellTotal\"><Data ss:Type=\"Number\">{0:F2}</Data></Cell>", sCom.GrossFloorArea));
-            sb.AppendLine(string.Format("    <Cell ss:StyleID=\"CellTotal\"><Data ss:Type=\"Number\">{0:F2}</Data></Cell>", sCom.UlebAmount));
-            sb.AppendLine(string.Format("    <Cell ss:StyleID=\"CellTotal\"><Data ss:Type=\"Number\">{0:F2}</Data></Cell>", sCom.ZoningFloorArea));
-            sb.AppendLine(string.Format("    <Cell ss:StyleID=\"CellTotal\"><Data ss:Type=\"Number\">{0:F2}</Data></Cell>", sCom.Far));
+            sb.AppendLine(string.Format("    <Cell ss:StyleID=\"CellTotal\"><Data ss:Type=\"Number\">{0:F2}</Data></Cell>", tot.ResidentialZfa));
+            sb.AppendLine(string.Format("    <Cell ss:StyleID=\"CellTotal\"><Data ss:Type=\"Number\">{0:F2}</Data></Cell>", tot.CommercialZfa));
+            sb.AppendLine(string.Format("    <Cell ss:StyleID=\"CellTotal\"><Data ss:Type=\"Number\">{0:F2}</Data></Cell>", tot.TotalZfa));
 
-            sb.AppendLine(string.Format("    <Cell ss:StyleID=\"CellTotal\"><Data ss:Type=\"Number\">{0:F2}</Data></Cell>", table.TotalZoningFloorArea));
-            sb.AppendLine(string.Format("    <Cell ss:StyleID=\"CellTotal\"><Data ss:Type=\"Number\">{0:F2}</Data></Cell>", table.TotalFar));
+            sb.AppendLine(string.Format("    <Cell ss:StyleID=\"CellTotal\"><Data ss:Type=\"Number\">{0:F2}</Data></Cell>", tot.ResidentialFar));
+            sb.AppendLine(string.Format("    <Cell ss:StyleID=\"CellTotal\"><Data ss:Type=\"Number\">{0:F2}</Data></Cell>", tot.CommercialFar));
+            sb.AppendLine(string.Format("    <Cell ss:StyleID=\"CellTotal\"><Data ss:Type=\"Number\">{0:F2}</Data></Cell>", tot.TotalFar));
             sb.AppendLine("   </Row>");
 
             sb.AppendLine("  </Table>");

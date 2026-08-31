@@ -95,15 +95,16 @@ namespace ZoningFloorArea.Services
                 }
             }
 
-            // 2. Base Deduction Categories
+            // 2. Base Deduction Categories matching standard NYC Zoning template
             List<string> baseCategories = new List<string>
             {
-                "CHASE WALLS",
+                "CHASE WALL",
                 "STAIRS",
-                "MECHANICAL",
+                "PARKING",
                 "BYCYCLE PARKING",
                 "AMENITIES",
                 "CORRIDOR",
+                "MECH ROOM",
                 "REFUSE"
             };
 
@@ -113,11 +114,11 @@ namespace ZoningFloorArea.Services
             {
                 if (!string.IsNullOrEmpty(d.DeductionType))
                 {
-                    string trimmedType = d.DeductionType.Trim().ToUpperInvariant();
+                    string normalized = NormalizeCategoryName(d.DeductionType);
                     bool exists = false;
                     foreach (string cat in finalCategories)
                     {
-                        if (string.Equals(cat, trimmedType, StringComparison.OrdinalIgnoreCase))
+                        if (string.Equals(cat, normalized, StringComparison.OrdinalIgnoreCase))
                         {
                             exists = true;
                             break;
@@ -125,7 +126,7 @@ namespace ZoningFloorArea.Services
                     }
                     if (!exists)
                     {
-                        finalCategories.Add(trimmedType);
+                        finalCategories.Add(normalized);
                     }
                 }
             }
@@ -151,16 +152,15 @@ namespace ZoningFloorArea.Services
                 return result;
             }
 
-            // 4. Build Level Rows for Residential and Commercial
-            List<LevelZoningRow> resRows = new List<LevelZoningRow>();
-            List<LevelZoningRow> comRows = new List<LevelZoningRow>();
+            // 4. Build Unified Level Rows (1 row per level)
+            List<LevelZoningRow> rows = new List<LevelZoningRow>();
 
             foreach (string lvlName in levelNames)
             {
                 double lvlElev = levelElevations[lvlName];
                 TypicalFloorGroup matchingGroup = FindMatchingGroup(lvlName, lvlElev, levelElevations, groups);
 
-                // Residential Row
+                // Residential Gross
                 double resGrossSqFt = 0;
                 foreach (AreaDataModel a in grossAreas)
                 {
@@ -171,38 +171,7 @@ namespace ZoningFloorArea.Services
                     }
                 }
 
-                LevelZoningRow resRow = new LevelZoningRow();
-                resRow.LevelName = lvlName;
-                resRow.LevelElevation = lvlElev;
-                resRow.UsageCategory = "Residential";
-                resRow.GrossFloorArea = resGrossSqFt * unitFactor;
-                resRow.UlebPercent = config.UlebPercent;
-                resRow.LotArea = lotAreaConverted;
-
-                if (matchingGroup != null)
-                {
-                    resRow.GroupName = matchingGroup.Name;
-                    resRow.GroupColorHex = matchingGroup.ColorHex;
-                }
-
-                foreach (string cat in result.DeductionCategories)
-                {
-                    double dedSqFt = 0;
-                    foreach (AreaDataModel d in deductionAreas)
-                    {
-                        if (string.Equals(d.LevelName, lvlName, StringComparison.OrdinalIgnoreCase) &&
-                            string.Equals(d.UsageCategory, "Residential", StringComparison.OrdinalIgnoreCase) &&
-                            string.Equals(d.DeductionType, cat, StringComparison.OrdinalIgnoreCase))
-                        {
-                            dedSqFt += d.AreaValue;
-                        }
-                    }
-                    resRow.SetDeduction(cat, dedSqFt * unitFactor);
-                }
-
-                resRows.Add(resRow);
-
-                // Commercial Row
+                // Commercial Gross
                 double comGrossSqFt = 0;
                 foreach (AreaDataModel a in grossAreas)
                 {
@@ -213,47 +182,113 @@ namespace ZoningFloorArea.Services
                     }
                 }
 
-                LevelZoningRow comRow = new LevelZoningRow();
-                comRow.LevelName = lvlName;
-                comRow.LevelElevation = lvlElev;
-                comRow.UsageCategory = "Commercial";
-                comRow.GrossFloorArea = comGrossSqFt * unitFactor;
-                comRow.UlebPercent = config.UlebPercent;
-                comRow.LotArea = lotAreaConverted;
+                LevelZoningRow row = new LevelZoningRow();
+                row.LevelName = lvlName;
+                row.LevelElevation = lvlElev;
+                row.ResidentialGrossFloorArea = resGrossSqFt * unitFactor;
+                row.CommercialGrossFloorArea = comGrossSqFt * unitFactor;
+                row.UlebPercent = config.UlebPercent;
+                row.LotArea = lotAreaConverted;
 
                 if (matchingGroup != null)
                 {
-                    comRow.GroupName = matchingGroup.Name;
-                    comRow.GroupColorHex = matchingGroup.ColorHex;
+                    row.GroupName = matchingGroup.Name;
+                    row.GroupColorHex = matchingGroup.ColorHex;
                 }
+
+                // Deductions per category
+                foreach (string cat in result.DeductionCategories)
+                {
+                    double resDedSqFt = 0;
+                    double comDedSqFt = 0;
+
+                    foreach (AreaDataModel d in deductionAreas)
+                    {
+                        if (string.Equals(d.LevelName, lvlName, StringComparison.OrdinalIgnoreCase))
+                        {
+                            string norm = NormalizeCategoryName(d.DeductionType);
+                            if (string.Equals(norm, cat, StringComparison.OrdinalIgnoreCase))
+                            {
+                                if (string.Equals(d.UsageCategory, "Commercial", StringComparison.OrdinalIgnoreCase))
+                                {
+                                    comDedSqFt += d.AreaValue;
+                                }
+                                else
+                                {
+                                    resDedSqFt += d.AreaValue;
+                                }
+                            }
+                        }
+                    }
+
+                    row.SetResidentialDeduction(cat, resDedSqFt * unitFactor);
+                    row.SetCommercialDeduction(cat, comDedSqFt * unitFactor);
+                }
+
+                rows.Add(row);
+            }
+
+            result.Rows = rows;
+
+            // 5. Calculate TOTALS Row
+            LevelZoningRow totals = new LevelZoningRow();
+            totals.LevelName = "TOTALS";
+            totals.GroupName = "TOTALS";
+            totals.UlebPercent = config.UlebPercent;
+            totals.LotArea = lotAreaConverted;
+
+            double totResGross = 0;
+            double totComGross = 0;
+            Dictionary<string, double> totResDeds = new Dictionary<string, double>(StringComparer.OrdinalIgnoreCase);
+            Dictionary<string, double> totComDeds = new Dictionary<string, double>(StringComparer.OrdinalIgnoreCase);
+
+            foreach (string cat in result.DeductionCategories)
+            {
+                totResDeds[cat] = 0;
+                totComDeds[cat] = 0;
+            }
+
+            foreach (LevelZoningRow r in rows)
+            {
+                totResGross += r.ResidentialGrossFloorArea;
+                totComGross += r.CommercialGrossFloorArea;
 
                 foreach (string cat in result.DeductionCategories)
                 {
-                    double dedSqFt = 0;
-                    foreach (AreaDataModel d in deductionAreas)
-                    {
-                        if (string.Equals(d.LevelName, lvlName, StringComparison.OrdinalIgnoreCase) &&
-                            string.Equals(d.UsageCategory, "Commercial", StringComparison.OrdinalIgnoreCase) &&
-                            string.Equals(d.DeductionType, cat, StringComparison.OrdinalIgnoreCase))
-                        {
-                            dedSqFt += d.AreaValue;
-                        }
-                    }
-                    comRow.SetDeduction(cat, dedSqFt * unitFactor);
+                    totResDeds[cat] += r.ResidentialDeductions.ContainsKey(cat) ? r.ResidentialDeductions[cat] : 0;
+                    totComDeds[cat] += r.CommercialDeductions.ContainsKey(cat) ? r.CommercialDeductions[cat] : 0;
                 }
-
-                comRows.Add(comRow);
             }
 
-            result.ResidentialRows = resRows;
-            result.CommercialRows = comRows;
+            totals.ResidentialGrossFloorArea = totResGross;
+            totals.CommercialGrossFloorArea = totComGross;
 
-            // 5. Calculate Subtotals and Grand Total
-            result.ResidentialSubtotal = CalculateSubtotal("SUBTOTAL", "Residential", resRows, result.DeductionCategories, config.UlebPercent, lotAreaConverted);
-            result.CommercialSubtotal = CalculateSubtotal("SUBTOTAL", "Commercial", comRows, result.DeductionCategories, config.UlebPercent, lotAreaConverted);
-            result.GrandTotal = CalculateGrandTotal("TOTAL", result.ResidentialSubtotal, result.CommercialSubtotal, result.DeductionCategories, config.UlebPercent, lotAreaConverted);
+            foreach (string cat in result.DeductionCategories)
+            {
+                totals.SetResidentialDeduction(cat, totResDeds[cat]);
+                totals.SetCommercialDeduction(cat, totComDeds[cat]);
+            }
+
+            result.TotalsRow = totals;
 
             return result;
+        }
+
+        private string NormalizeCategoryName(string raw)
+        {
+            if (string.IsNullOrWhiteSpace(raw)) return string.Empty;
+            string t = raw.Trim().ToUpperInvariant();
+
+            if (t == "CHASE WALLS" || t == "CHASE" || t == "SHAFTS" || t == "SHAFT") return "CHASE WALL";
+            if (t == "STAIR" || t == "STAIRWELL" || t == "STAIRWAY") return "STAIRS";
+            if (t == "PARKING" || t == "GARAGE") return "PARKING";
+            if (t == "BICYCLE" || t == "BICYCLE PARKING" || t == "BIKE" || t == "BIKE PARKING") return "BYCYCLE PARKING";
+            if (t == "AMENITY" || t == "AMENITIES") return "AMENITIES";
+            if (t == "CORRIDORS" || t == "HALLWAY") return "CORRIDOR";
+            if (t == "MECHANICAL" || t == "MECH" || t == "HVAC" || t == "BOILER") return "MECH ROOM";
+            if (t == "TRASH" || t == "GARBAGE" || t == "COMPACTOR") return "REFUSE";
+
+            return t;
         }
 
         private TypicalFloorGroup FindMatchingGroup(string lvlName, double lvlElev, Dictionary<string, double> levelElevations, List<TypicalFloorGroup> groups)
@@ -305,89 +340,42 @@ namespace ZoningFloorArea.Services
             Dictionary<string, double> resDeds = new Dictionary<string, double>(StringComparer.OrdinalIgnoreCase);
             Dictionary<string, double> comDeds = new Dictionary<string, double>(StringComparer.OrdinalIgnoreCase);
 
+            foreach (string cat in summary.DeductionCategories)
+            {
+                resDeds[cat] = 0;
+                comDeds[cat] = 0;
+            }
+
             foreach (ZoningTableResult t in bldgTables)
             {
-                resGross += t.ResidentialSubtotal.GrossFloorArea;
-                comGross += t.CommercialSubtotal.GrossFloorArea;
+                if (t.TotalsRow == null) continue;
+                resGross += t.TotalsRow.ResidentialGrossFloorArea;
+                comGross += t.TotalsRow.CommercialGrossFloorArea;
 
                 foreach (string cat in summary.DeductionCategories)
                 {
-                    if (!resDeds.ContainsKey(cat)) resDeds[cat] = 0;
-                    if (!comDeds.ContainsKey(cat)) comDeds[cat] = 0;
-
-                    resDeds[cat] += t.ResidentialSubtotal.GetDeduction(cat);
-                    comDeds[cat] += t.CommercialSubtotal.GetDeduction(cat);
+                    resDeds[cat] += t.TotalsRow.ResidentialDeductions.ContainsKey(cat) ? t.TotalsRow.ResidentialDeductions[cat] : 0;
+                    comDeds[cat] += t.TotalsRow.CommercialDeductions.ContainsKey(cat) ? t.TotalsRow.CommercialDeductions[cat] : 0;
                 }
             }
 
-            summary.ResidentialSubtotal.GrossFloorArea = resGross;
-            summary.CommercialSubtotal.GrossFloorArea = comGross;
+            summary.TotalsRow = new LevelZoningRow
+            {
+                LevelName = "TOTALS",
+                GroupName = "TOTALS",
+                ResidentialGrossFloorArea = resGross,
+                CommercialGrossFloorArea = comGross,
+                UlebPercent = config.UlebPercent,
+                LotArea = config.LotArea
+            };
 
             foreach (string cat in summary.DeductionCategories)
             {
-                summary.ResidentialSubtotal.SetDeduction(cat, resDeds[cat]);
-                summary.CommercialSubtotal.SetDeduction(cat, comDeds[cat]);
-            }
-
-            summary.GrandTotal.GrossFloorArea = resGross + comGross;
-            foreach (string cat in summary.DeductionCategories)
-            {
-                summary.GrandTotal.SetDeduction(cat, resDeds[cat] + comDeds[cat]);
+                summary.TotalsRow.SetResidentialDeduction(cat, resDeds[cat]);
+                summary.TotalsRow.SetCommercialDeduction(cat, comDeds[cat]);
             }
 
             return summary;
-        }
-
-        private LevelZoningRow CalculateSubtotal(string label, string usageCat, List<LevelZoningRow> rows, List<string> categories, double ulebPercent, double lotArea)
-        {
-            LevelZoningRow subtotal = new LevelZoningRow();
-            subtotal.LevelName = label;
-            subtotal.UsageCategory = usageCat;
-            subtotal.UlebPercent = ulebPercent;
-            subtotal.LotArea = lotArea;
-
-            double gross = 0;
-            Dictionary<string, double> dedSums = new Dictionary<string, double>(StringComparer.OrdinalIgnoreCase);
-            foreach (string cat in categories)
-            {
-                dedSums[cat] = 0;
-            }
-
-            foreach (LevelZoningRow r in rows)
-            {
-                gross += r.GrossFloorArea;
-                foreach (string cat in categories)
-                {
-                    dedSums[cat] += r.GetDeduction(cat);
-                }
-            }
-
-            subtotal.GrossFloorArea = gross;
-            foreach (string cat in categories)
-            {
-                subtotal.SetDeduction(cat, dedSums[cat]);
-            }
-
-            return subtotal;
-        }
-
-        private LevelZoningRow CalculateGrandTotal(string label, LevelZoningRow resSub, LevelZoningRow comSub, List<string> categories, double ulebPercent, double lotArea)
-        {
-            LevelZoningRow grandTotal = new LevelZoningRow();
-            grandTotal.LevelName = label;
-            grandTotal.UsageCategory = "Project Total";
-            grandTotal.UlebPercent = ulebPercent;
-            grandTotal.LotArea = lotArea;
-
-            grandTotal.GrossFloorArea = resSub.GrossFloorArea + comSub.GrossFloorArea;
-
-            foreach (string cat in categories)
-            {
-                double totalDed = resSub.GetDeduction(cat) + comSub.GetDeduction(cat);
-                grandTotal.SetDeduction(cat, totalDed);
-            }
-
-            return grandTotal;
         }
     }
 }
