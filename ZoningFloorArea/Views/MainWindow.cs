@@ -1857,7 +1857,41 @@ namespace ZoningFloorArea.Views
 
             // 2. Deduction Parameter (separates categories like Stairs, Mechanical, Chase Walls, etc.)
             StackPanel sDedParam = new StackPanel();
-            sDedParam.Children.Add(new WpfTextBlock { Text = "Parámetro Deducción:", FontSize = 9, FontWeight = FontWeights.SemiBold, Foreground = new SolidColorBrush((WpfColor)ColorConverter.ConvertFromString("#2563EB")), Margin = new Thickness(0, 0, 0, 2) });
+            WpfGrid dHdrGrid = new WpfGrid { Margin = new Thickness(0, 0, 0, 2) };
+            dHdrGrid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
+            dHdrGrid.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
+
+            dHdrGrid.Children.Add(new WpfTextBlock
+            {
+                Text = "Parámetro Deducción:",
+                FontSize = 9,
+                FontWeight = FontWeights.SemiBold,
+                Foreground = new SolidColorBrush((WpfColor)ColorConverter.ConvertFromString("#2563EB")),
+                VerticalAlignment = VerticalAlignment.Center
+            });
+
+            WpfButton btnCreateParam = new WpfButton
+            {
+                Content = "➕ Crear 'Deductions'",
+                FontSize = 8.5,
+                FontWeight = FontWeights.SemiBold,
+                Padding = new Thickness(5, 1, 5, 1),
+                Height = 18,
+                Background = new SolidColorBrush((WpfColor)ColorConverter.ConvertFromString("#EEF2FF")),
+                Foreground = new SolidColorBrush((WpfColor)ColorConverter.ConvertFromString("#4F46E5")),
+                BorderBrush = new SolidColorBrush((WpfColor)ColorConverter.ConvertFromString("#C7D2FE")),
+                BorderThickness = new Thickness(1),
+                ToolTip = "Crear el parámetro compartido de texto 'Deductions' en Revit y vincularlo a Áreas automáticamente."
+            };
+            btnCreateParam.Click += (s, e) =>
+            {
+                _vm.CreateDeductionParameterInRevit("Deductions");
+                RefreshCalculateUI();
+            };
+            WpfGrid.SetColumn(btnCreateParam, 1);
+            dHdrGrid.Children.Add(btnCreateParam);
+            sDedParam.Children.Add(dHdrGrid);
+
             WpfComboBox comboDedParam = new WpfComboBox { Height = 25, FontSize = 10.5, ItemsSource = _vm.AvailableParameters, SelectedItem = _vm.Config.DeductionTypeParameterName };
             comboDedParam.SelectionChanged += (s, e) =>
             {

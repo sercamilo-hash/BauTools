@@ -414,8 +414,11 @@ namespace ZoningFloorArea.ViewModels
                 List<string> paramsList = _extractor.GetAvailableAreaParameters();
                 foreach (string p in paramsList) AvailableParameters.Add(p);
 
-                string dedParam = paramsList.FirstOrDefault(p => p.IndexOf("Deduction", StringComparison.OrdinalIgnoreCase) >= 0);
-                Config.DeductionTypeParameterName = dedParam ?? "Deduction";
+                string dedParam = paramsList.FirstOrDefault(p =>
+                    string.Equals(p, "Deductions", StringComparison.OrdinalIgnoreCase) ||
+                    string.Equals(p, "Deduction", StringComparison.OrdinalIgnoreCase) ||
+                    p.IndexOf("Deduction", StringComparison.OrdinalIgnoreCase) >= 0);
+                Config.DeductionTypeParameterName = dedParam ?? (paramsList.Contains("Name") ? "Name" : (paramsList.Count > 0 ? paramsList[0] : "Deductions"));
 
                 string bldgParam = paramsList.FirstOrDefault(p => p.IndexOf("Building", StringComparison.OrdinalIgnoreCase) >= 0);
                 Config.BuildingParameterName = bldgParam ?? "Building";
@@ -601,6 +604,37 @@ namespace ZoningFloorArea.ViewModels
                 string msg = string.Format("Removed package '{0}'.", pkg.DisplayName);
                 StatusMessage = msg;
                 TriggerToast(msg, false);
+            }
+        }
+
+        public bool CreateDeductionParameterInRevit(string paramName = "Deductions")
+        {
+            try
+            {
+                bool ok = _extractor.CreateAreaSharedParameter(paramName);
+                if (ok)
+                {
+                    AvailableParameters.Clear();
+                    foreach (string p in _extractor.GetAvailableAreaParameters()) AvailableParameters.Add(p);
+                    Config.DeductionTypeParameterName = paramName;
+                    CalculateTable();
+                    string msg = string.Format("Successfully created and bound '{0}' parameter to Areas in Revit.", paramName);
+                    StatusMessage = msg;
+                    TriggerToast(msg, false);
+                    return true;
+                }
+                else
+                {
+                    StatusMessage = "Could not create parameter in Revit.";
+                    TriggerToast("Error creating parameter in Revit.", true);
+                    return false;
+                }
+            }
+            catch (Exception ex)
+            {
+                StatusMessage = "Error: " + ex.Message;
+                TriggerToast("Parameter Error: " + ex.Message, true);
+                return false;
             }
         }
 
