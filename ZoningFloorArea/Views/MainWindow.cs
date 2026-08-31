@@ -68,6 +68,7 @@ namespace ZoningFloorArea.Views
         private StackPanel _propagateSummaryContainer;
         private TabControl _tabControlBuildings;
         private StackPanel _step4PreviewContainer;
+        private StackPanel _packagesContainer;
         private WpfTextBlock _step4SummaryBadge;
         private WpfTextBlock _txtStatus;
 
@@ -2147,14 +2148,173 @@ namespace ZoningFloorArea.Views
             formStack.Children.Add(tbBox);
 
             // 2. View Packages Section with 1 to 8 Matrix Grid
-            formStack.Children.Add(new WpfTextBlock
+            WpfGrid pkgHdrGrid = new WpfGrid { Margin = new Thickness(0, 4, 0, 8) };
+            pkgHdrGrid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
+            pkgHdrGrid.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
+
+            pkgHdrGrid.Children.Add(new WpfTextBlock
             {
                 Text = "CONFIGURACION INDEPENDIENTE POR PAQUETE DE PLANOS:",
                 FontSize = 11,
                 FontWeight = FontWeights.Bold,
                 Foreground = new SolidColorBrush(COL_TEXT_MUTED),
-                Margin = new Thickness(0, 4, 0, 8)
+                VerticalAlignment = VerticalAlignment.Center
             });
+
+            WpfButton btnAddPkg = CreateNeutralButton("➕ Agregar Paquete");
+            btnAddPkg.Height = 26;
+            btnAddPkg.FontSize = 10.5;
+            btnAddPkg.Padding = new Thickness(10, 0, 10, 0);
+            btnAddPkg.Click += (s, e) =>
+            {
+                string newPkgName = string.Format("Paquete {0}", _vm.PackageSettings.Count + 1);
+                string defaultScheme = _vm.AreaSchemes.Count > 0 ? _vm.AreaSchemes[0] : "";
+                _vm.AddCustomPackage(newPkgName, "P-", ViewPlanKind.AreaPlan, defaultScheme);
+                RefreshPackageListUI();
+                RefreshStep4PreviewUI();
+            };
+            WpfGrid.SetColumn(btnAddPkg, 1);
+            pkgHdrGrid.Children.Add(btnAddPkg);
+
+            formStack.Children.Add(pkgHdrGrid);
+
+            _packagesContainer = new StackPanel();
+            formStack.Children.Add(_packagesContainer);
+            RefreshPackageListUI();
+
+            // Scope Box & Parameters Section
+            WpfGrid scopeGrid = new WpfGrid { Margin = new Thickness(0, 6, 0, 10) };
+            scopeGrid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
+            scopeGrid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(10) });
+            scopeGrid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
+
+            StackPanel msStack = new StackPanel();
+            msStack.Children.Add(new WpfTextBlock { Text = "Master Scope Box (Overall):", FontSize = 9.5, Foreground = new SolidColorBrush(COL_TEXT_MUTED), Margin = new Thickness(0, 0, 0, 2) });
+            WpfComboBox cMasterScope = new WpfComboBox { Height = 28, ItemsSource = _vm.AvailableScopeBoxes, SelectedItem = _vm.Config.MasterScopeBoxName };
+            cMasterScope.SelectionChanged += (s, e) => { if (cMasterScope.SelectedItem != null) _vm.Config.MasterScopeBoxName = cMasterScope.SelectedItem.ToString(); };
+            msStack.Children.Add(cMasterScope);
+            WpfGrid.SetColumn(msStack, 0);
+            scopeGrid.Children.Add(msStack);
+
+            StackPanel vpStack = new StackPanel();
+            vpStack.Children.Add(new WpfTextBlock { Text = "Building View Parameter:", FontSize = 9.5, Foreground = new SolidColorBrush(COL_TEXT_MUTED), Margin = new Thickness(0, 0, 0, 2) });
+            WpfComboBox cViewParam = new WpfComboBox { Height = 28, ItemsSource = _vm.AvailableViewParameters, SelectedItem = _vm.Config.ViewBuildingParameterName };
+            cViewParam.SelectionChanged += (s, e) => { if (cViewParam.SelectedItem != null) _vm.Config.ViewBuildingParameterName = cViewParam.SelectedItem.ToString(); };
+            vpStack.Children.Add(cViewParam);
+            WpfGrid.SetColumn(vpStack, 2);
+            scopeGrid.Children.Add(vpStack);
+
+            formStack.Children.Add(scopeGrid);
+
+            // Checkbox: Reposition
+            WpfCheckBox chkRepo = new WpfCheckBox
+            {
+                Content = "Reposition & update viewports if views already exist on sheets",
+                IsChecked = _vm.RepositionIfExists,
+                FontWeight = FontWeights.Medium,
+                Margin = new Thickness(0, 0, 0, 4)
+            };
+            chkRepo.Checked += (s, e) => _vm.RepositionIfExists = true;
+            chkRepo.Unchecked += (s, e) => _vm.RepositionIfExists = false;
+            formStack.Children.Add(chkRepo);
+
+            scroll.Content = formStack;
+            WpfGrid.SetRow(scroll, 1);
+            cfgGrid.Children.Add(scroll);
+
+            cardConfig.Child = cfgGrid;
+            WpfGrid.SetColumn(cardConfig, 0);
+            grid.Children.Add(cardConfig);
+
+            // ── Right Card: Live Visual Sheet Preview & Action Bar ──
+            Border cardPreview = CreateCard();
+            WpfGrid prevLayout = new WpfGrid();
+            prevLayout.RowDefinitions.Add(new RowDefinition { Height = GridLength.Auto }); // Header
+            prevLayout.RowDefinitions.Add(new RowDefinition { Height = new GridLength(1, GridUnitType.Star) }); // Scrollable Sheet Previews
+            prevLayout.RowDefinitions.Add(new RowDefinition { Height = GridLength.Auto }); // Action Bar
+
+            // Header
+            StackPanel prevHdr = new StackPanel { Margin = new Thickness(0, 0, 0, 10) };
+            prevHdr.Children.Add(new WpfTextBlock
+            {
+                Text = "Live Sheet & Matrix Canvas Visualizer",
+                FontSize = 15,
+                FontWeight = FontWeights.SemiBold,
+                Foreground = new SolidColorBrush(COL_TEXT_MAIN)
+            });
+            prevHdr.Children.Add(new WpfTextBlock
+            {
+                Text = "Simulated drawing workspace displaying real viewport matrix slots, building Scope Boxes, and Title on Sheet badges.",
+                FontSize = 11.5,
+                Foreground = new SolidColorBrush(COL_TEXT_MUTED)
+            });
+            WpfGrid.SetRow(prevHdr, 0);
+            prevLayout.Children.Add(prevHdr);
+
+            // Scrollable Preview Container
+            ScrollViewer prevScroll = new ScrollViewer { VerticalScrollBarVisibility = ScrollBarVisibility.Auto };
+            _step4PreviewContainer = new StackPanel();
+            prevScroll.Content = _step4PreviewContainer;
+            WpfGrid.SetRow(prevScroll, 1);
+            prevLayout.Children.Add(prevScroll);
+
+            // Action Bar
+            Border actBox = new Border { Margin = new Thickness(0, 14, 0, 0) };
+            WpfGrid actGrid = new WpfGrid();
+            actGrid.RowDefinitions.Add(new RowDefinition { Height = GridLength.Auto }); // Summary badge
+            actGrid.RowDefinitions.Add(new RowDefinition { Height = GridLength.Auto }); // Buttons
+
+            _step4SummaryBadge = new WpfTextBlock
+            {
+                FontSize = 11,
+                FontWeight = FontWeights.SemiBold,
+                Foreground = new SolidColorBrush((WpfColor)ColorConverter.ConvertFromString("#1D4ED8")),
+                Margin = new Thickness(0, 0, 0, 10)
+            };
+            WpfGrid.SetRow(_step4SummaryBadge, 0);
+            actGrid.Children.Add(_step4SummaryBadge);
+
+            WpfGrid btnGrid = new WpfGrid();
+            btnGrid.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto }); // Excel
+            btnGrid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) }); // Spacer
+            btnGrid.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto }); // Compose
+
+            WpfButton btnExcel = CreateNeutralButton("📊 Export Excel (.xls)");
+            btnExcel.Height = 36;
+            btnExcel.Padding = new Thickness(14, 0, 14, 0);
+            btnExcel.Click += (s, e) => _vm.ExportExcelCommand.Execute(null);
+            WpfGrid.SetColumn(btnExcel, 0);
+            btnGrid.Children.Add(btnExcel);
+
+            WpfButton btnCompose = CreatePrimaryButton("🚀 Generate Views & Compose Sheets in Revit");
+            btnCompose.Height = 38;
+            btnCompose.Padding = new Thickness(22, 0, 22, 0);
+            btnCompose.Click += (s, e) =>
+            {
+                _vm.ExecuteComposeSheets();
+                RefreshStep4PreviewUI();
+            };
+            WpfGrid.SetColumn(btnCompose, 2);
+            btnGrid.Children.Add(btnCompose);
+
+            WpfGrid.SetRow(btnGrid, 1);
+            actGrid.Children.Add(btnGrid);
+
+            actBox.Child = actGrid;
+            WpfGrid.SetRow(actBox, 2);
+            prevLayout.Children.Add(actBox);
+
+            cardPreview.Child = prevLayout;
+            WpfGrid.SetColumn(cardPreview, 2);
+            grid.Children.Add(cardPreview);
+
+            return grid;
+        }
+
+        private void RefreshPackageListUI()
+        {
+            if (_packagesContainer == null) return;
+            _packagesContainer.Children.Clear();
 
             foreach (PackageSetting pkg in _vm.PackageSettings)
             {
@@ -2176,10 +2336,14 @@ namespace ZoningFloorArea.Views
 
                 StackPanel pCardStack = new StackPanel();
 
-                // Row 1: Checkbox & Name + Prefix
+                // Row 1: Checkbox & Name + Prefix + Delete Button (if custom)
                 WpfGrid r1Grid = new WpfGrid { Margin = new Thickness(0, 0, 0, 6) };
                 r1Grid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
                 r1Grid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(70) });
+                if (currentPkg.IsCustomPackage)
+                {
+                    r1Grid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(28) });
+                }
 
                 WpfCheckBox chk = new WpfCheckBox
                 {
@@ -2204,6 +2368,31 @@ namespace ZoningFloorArea.Views
                 txtPfx.TextChanged += (s, e) => { currentPkg.SheetPrefix = txtPfx.Text; RefreshStep4PreviewUI(); };
                 WpfGrid.SetColumn(txtPfx, 1);
                 r1Grid.Children.Add(txtPfx);
+
+                if (currentPkg.IsCustomPackage)
+                {
+                    WpfButton btnDelPkg = new WpfButton
+                    {
+                        Content = "✕",
+                        Width = 20,
+                        Height = 20,
+                        FontSize = 10,
+                        FontWeight = FontWeights.Bold,
+                        Background = WpfBrushes.Transparent,
+                        BorderThickness = new Thickness(0),
+                        Foreground = new SolidColorBrush(COL_DANGER),
+                        ToolTip = "Eliminar este paquete de planos"
+                    };
+                    btnDelPkg.Click += (s, e) =>
+                    {
+                        _vm.RemovePackage(currentPkg);
+                        RefreshPackageListUI();
+                        RefreshStep4PreviewUI();
+                    };
+                    WpfGrid.SetColumn(btnDelPkg, 2);
+                    r1Grid.Children.Add(btnDelPkg);
+                }
+
                 pCardStack.Children.Add(r1Grid);
 
                 // Row 1.5: View Plan Kind (Tipo de Vista) + Revit Area Scheme Dropdown
@@ -2395,136 +2584,8 @@ namespace ZoningFloorArea.Views
 
                 pCardStack.Children.Add(r2Grid);
                 pBox.Child = pCardStack;
-                formStack.Children.Add(pBox);
+                _packagesContainer.Children.Add(pBox);
             }
-
-            // Scope Box & Parameters Section
-            WpfGrid scopeGrid = new WpfGrid { Margin = new Thickness(0, 6, 0, 10) };
-            scopeGrid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
-            scopeGrid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(10) });
-            scopeGrid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
-
-            StackPanel msStack = new StackPanel();
-            msStack.Children.Add(new WpfTextBlock { Text = "Master Scope Box (Overall):", FontSize = 9.5, Foreground = new SolidColorBrush(COL_TEXT_MUTED), Margin = new Thickness(0, 0, 0, 2) });
-            WpfComboBox cMasterScope = new WpfComboBox { Height = 28, ItemsSource = _vm.AvailableScopeBoxes, SelectedItem = _vm.Config.MasterScopeBoxName };
-            cMasterScope.SelectionChanged += (s, e) => { if (cMasterScope.SelectedItem != null) _vm.Config.MasterScopeBoxName = cMasterScope.SelectedItem.ToString(); };
-            msStack.Children.Add(cMasterScope);
-            WpfGrid.SetColumn(msStack, 0);
-            scopeGrid.Children.Add(msStack);
-
-            StackPanel vpStack = new StackPanel();
-            vpStack.Children.Add(new WpfTextBlock { Text = "Building View Parameter:", FontSize = 9.5, Foreground = new SolidColorBrush(COL_TEXT_MUTED), Margin = new Thickness(0, 0, 0, 2) });
-            WpfComboBox cViewParam = new WpfComboBox { Height = 28, ItemsSource = _vm.AvailableViewParameters, SelectedItem = _vm.Config.ViewBuildingParameterName };
-            cViewParam.SelectionChanged += (s, e) => { if (cViewParam.SelectedItem != null) _vm.Config.ViewBuildingParameterName = cViewParam.SelectedItem.ToString(); };
-            vpStack.Children.Add(cViewParam);
-            WpfGrid.SetColumn(vpStack, 2);
-            scopeGrid.Children.Add(vpStack);
-
-            formStack.Children.Add(scopeGrid);
-
-            // Checkbox: Reposition
-            WpfCheckBox chkRepo = new WpfCheckBox
-            {
-                Content = "Reposition & update viewports if views already exist on sheets",
-                IsChecked = _vm.RepositionIfExists,
-                FontWeight = FontWeights.Medium,
-                Margin = new Thickness(0, 0, 0, 4)
-            };
-            chkRepo.Checked += (s, e) => _vm.RepositionIfExists = true;
-            chkRepo.Unchecked += (s, e) => _vm.RepositionIfExists = false;
-            formStack.Children.Add(chkRepo);
-
-            scroll.Content = formStack;
-            WpfGrid.SetRow(scroll, 1);
-            cfgGrid.Children.Add(scroll);
-
-            cardConfig.Child = cfgGrid;
-            WpfGrid.SetColumn(cardConfig, 0);
-            grid.Children.Add(cardConfig);
-
-            // ── Right Card: Live Visual Sheet Preview & Action Bar ──
-            Border cardPreview = CreateCard();
-            WpfGrid prevLayout = new WpfGrid();
-            prevLayout.RowDefinitions.Add(new RowDefinition { Height = GridLength.Auto }); // Header
-            prevLayout.RowDefinitions.Add(new RowDefinition { Height = new GridLength(1, GridUnitType.Star) }); // Scrollable Sheet Previews
-            prevLayout.RowDefinitions.Add(new RowDefinition { Height = GridLength.Auto }); // Action Bar
-
-            // Header
-            StackPanel prevHdr = new StackPanel { Margin = new Thickness(0, 0, 0, 10) };
-            prevHdr.Children.Add(new WpfTextBlock
-            {
-                Text = "Live Sheet & Matrix Canvas Visualizer",
-                FontSize = 15,
-                FontWeight = FontWeights.SemiBold,
-                Foreground = new SolidColorBrush(COL_TEXT_MAIN)
-            });
-            prevHdr.Children.Add(new WpfTextBlock
-            {
-                Text = "Simulated drawing workspace displaying real viewport matrix slots, building Scope Boxes, and Title on Sheet badges.",
-                FontSize = 11.5,
-                Foreground = new SolidColorBrush(COL_TEXT_MUTED)
-            });
-            WpfGrid.SetRow(prevHdr, 0);
-            prevLayout.Children.Add(prevHdr);
-
-            // Scrollable Preview Container
-            ScrollViewer prevScroll = new ScrollViewer { VerticalScrollBarVisibility = ScrollBarVisibility.Auto };
-            _step4PreviewContainer = new StackPanel();
-            prevScroll.Content = _step4PreviewContainer;
-            WpfGrid.SetRow(prevScroll, 1);
-            prevLayout.Children.Add(prevScroll);
-
-            // Action Bar
-            Border actBox = new Border { Margin = new Thickness(0, 14, 0, 0) };
-            WpfGrid actGrid = new WpfGrid();
-            actGrid.RowDefinitions.Add(new RowDefinition { Height = GridLength.Auto }); // Summary badge
-            actGrid.RowDefinitions.Add(new RowDefinition { Height = GridLength.Auto }); // Buttons
-
-            _step4SummaryBadge = new WpfTextBlock
-            {
-                FontSize = 11,
-                FontWeight = FontWeights.SemiBold,
-                Foreground = new SolidColorBrush((WpfColor)ColorConverter.ConvertFromString("#1D4ED8")),
-                Margin = new Thickness(0, 0, 0, 10)
-            };
-            WpfGrid.SetRow(_step4SummaryBadge, 0);
-            actGrid.Children.Add(_step4SummaryBadge);
-
-            WpfGrid btnGrid = new WpfGrid();
-            btnGrid.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto }); // Excel
-            btnGrid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) }); // Spacer
-            btnGrid.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto }); // Compose
-
-            WpfButton btnExcel = CreateNeutralButton("📊 Export Excel (.xls)");
-            btnExcel.Height = 36;
-            btnExcel.Padding = new Thickness(14, 0, 14, 0);
-            btnExcel.Click += (s, e) => _vm.ExportExcelCommand.Execute(null);
-            WpfGrid.SetColumn(btnExcel, 0);
-            btnGrid.Children.Add(btnExcel);
-
-            WpfButton btnCompose = CreatePrimaryButton("🚀 Generate Views & Compose Sheets in Revit");
-            btnCompose.Height = 38;
-            btnCompose.Padding = new Thickness(22, 0, 22, 0);
-            btnCompose.Click += (s, e) =>
-            {
-                _vm.ExecuteComposeSheets();
-                RefreshStep4PreviewUI();
-            };
-            WpfGrid.SetColumn(btnCompose, 2);
-            btnGrid.Children.Add(btnCompose);
-
-            WpfGrid.SetRow(btnGrid, 1);
-            actGrid.Children.Add(btnGrid);
-
-            actBox.Child = actGrid;
-            WpfGrid.SetRow(actBox, 2);
-            prevLayout.Children.Add(actBox);
-
-            cardPreview.Child = prevLayout;
-            WpfGrid.SetColumn(cardPreview, 2);
-            grid.Children.Add(cardPreview);
-
-            return grid;
         }
 
         private void RefreshStep4PreviewUI()

@@ -28,7 +28,8 @@ namespace ZoningFloorArea.Models
         CeilingPlanRCP = 2,
         GrossArea = 3,
         Deductions = 4,
-        EgressLifeSafety = 5
+        EgressLifeSafety = 5,
+        Custom = 6
     }
 
     public class TitleblockItem
@@ -74,6 +75,7 @@ namespace ZoningFloorArea.Models
         public string DisplayName { get; set; }
         public string Icon { get; set; }
         public bool IsEnabled { get; set; }
+        public bool IsCustomPackage { get; set; }
         public string SheetPrefix { get; set; }
         public int StartNumber { get; set; }
         public string ViewTemplateName { get; set; }

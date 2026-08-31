@@ -256,6 +256,27 @@ namespace ZoningFloorArea.Services
                                         titleOnSheet = string.Format("{0} - {1} LIFE SAFETY PLAN", bldgTag, rangeLabel.ToUpperInvariant());
                                     }
                                     break;
+
+                                case ViewPackageType.Custom:
+                                default:
+                                    string pkgTitle = !string.IsNullOrEmpty(pkg.DisplayName) ? pkg.DisplayName.ToUpperInvariant() : "CUSTOM";
+                                    if (pkg.ViewKind == ViewPlanKind.AreaPlan)
+                                    {
+                                        string schName = !string.IsNullOrEmpty(pkg.SelectedAreaSchemeName) ? pkg.SelectedAreaSchemeName.ToUpperInvariant() : "AREA";
+                                        viewName = string.Format("FL. {0} - {1} [{2}] ({3})", rangeLabel, pkgTitle, schName, bldgTag);
+                                        titleOnSheet = string.Format("{0} - {1} {2}", bldgTag, rangeLabel.ToUpperInvariant(), pkgTitle);
+                                    }
+                                    else if (pkg.ViewKind == ViewPlanKind.CeilingPlan)
+                                    {
+                                        viewName = string.Format("FL. {0} - {1} RCP ({2})", rangeLabel, pkgTitle, bldgTag);
+                                        titleOnSheet = string.Format("{0} - {1} {2}", bldgTag, rangeLabel.ToUpperInvariant(), pkgTitle);
+                                    }
+                                    else
+                                    {
+                                        viewName = string.Format("FL. {0} - {1} ({2})", rangeLabel, pkgTitle, bldgTag);
+                                        titleOnSheet = string.Format("{0} - {1} {2}", bldgTag, rangeLabel.ToUpperInvariant(), pkgTitle);
+                                    }
+                                    break;
                             }
 
                             ViewPlan plan = CreateOrDuplicatePlanView(pkg.ViewKind, pkg.SelectedAreaSchemeName, srcLevel, floorPlanVft, ceilingPlanVft, config);

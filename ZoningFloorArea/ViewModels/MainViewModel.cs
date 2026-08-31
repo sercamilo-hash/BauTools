@@ -253,7 +253,7 @@ namespace ZoningFloorArea.ViewModels
         }
 
         public ObservableCollection<ViewTemplateItem> AvailableViewTemplates { get; set; }
-        public List<PackageSetting> PackageSettings { get; set; }
+        public ObservableCollection<PackageSetting> PackageSettings { get; set; }
         public ObservableCollection<PlannedSheet> PlannedSheets { get; set; }
 
         private SheetLayoutMode _selectedLayoutMode;
@@ -448,7 +448,7 @@ namespace ZoningFloorArea.ViewModels
                 List<ViewTemplateItem> vTemplates = _sheetPlaceService.GetAvailableViewTemplates();
                 foreach (ViewTemplateItem vt in vTemplates) AvailableViewTemplates.Add(vt);
 
-                PackageSettings = new List<PackageSetting>
+                PackageSettings = new ObservableCollection<PackageSetting>
                 {
                     new PackageSetting(ViewPackageType.MasterOverall, "Master Overall Plans", "🌐", "M-", 101, SheetLayoutMode.Single1View, 192, "1/16\" = 1'-0\" (1:192)", ViewPlanKind.FloorPlan),
                     new PackageSetting(ViewPackageType.GrossArea, "Gross Area Plans", "📐", "Z-", 101, SheetLayoutMode.Quad4Views, 96, "1/8\" = 1'-0\" (1:96)", ViewPlanKind.AreaPlan, Config.GrossAreaSchemeName),
@@ -565,6 +565,43 @@ namespace ZoningFloorArea.ViewModels
             string msg = string.Format("Copied {0} typical group(s) from '{1}' to '{2}'.", targetBuilding.TypicalGroups.Count, sourceBuilding.Name, targetBuilding.Name);
             StatusMessage = msg;
             TriggerToast(msg, false);
+        }
+
+        public void AddCustomPackage(string name, string prefix, ViewPlanKind kind, string schemeName)
+        {
+            if (string.IsNullOrWhiteSpace(name)) name = string.Format("Custom Package {0}", PackageSettings.Count + 1);
+            if (string.IsNullOrWhiteSpace(prefix)) prefix = "C-";
+
+            string icon = (kind == ViewPlanKind.AreaPlan) ? "📐" : (kind == ViewPlanKind.CeilingPlan ? "💡" : "🏢");
+            PackageSetting pkg = new PackageSetting(
+                ViewPackageType.Custom,
+                name.Trim(),
+                icon,
+                prefix.Trim().ToUpperInvariant(),
+                101,
+                SheetLayoutMode.Quad4Views,
+                96,
+                "1/8\" = 1'-0\" (1:96)",
+                kind,
+                schemeName);
+            pkg.IsCustomPackage = true;
+            PackageSettings.Add(pkg);
+            ComputePlannedSheets();
+            string msg = string.Format("Added package '{0}' ({1}).", pkg.DisplayName, kind);
+            StatusMessage = msg;
+            TriggerToast(msg, false);
+        }
+
+        public void RemovePackage(PackageSetting pkg)
+        {
+            if (pkg != null && PackageSettings.Contains(pkg))
+            {
+                PackageSettings.Remove(pkg);
+                ComputePlannedSheets();
+                string msg = string.Format("Removed package '{0}'.", pkg.DisplayName);
+                StatusMessage = msg;
+                TriggerToast(msg, false);
+            }
         }
 
         public string GetNextLevelAbove(string levelName)
@@ -1111,7 +1148,7 @@ namespace ZoningFloorArea.ViewModels
                                 vName = string.Format("FL. {0} - CEILING PLAN RCP ({1})", rangeLabel, bldgTag);
                                 titleOnSheet = string.Format("{0} - {1} REFLECTED CEILING PLAN", bldgTag, rangeLabel.ToUpperInvariant());
                                 break;
-                            case ViewPackageType.EgressLifeSafety:
+                                case ViewPackageType.EgressLifeSafety:
                                 if (pkg.ViewKind == ViewPlanKind.AreaPlan)
                                 {
                                     vName = string.Format("FL. {0} - LIFE SAFETY AREA PLAN ({1})", rangeLabel, bldgTag);
@@ -1121,6 +1158,26 @@ namespace ZoningFloorArea.ViewModels
                                 {
                                     vName = string.Format("FL. {0} - LIFE SAFETY PLAN ({1})", rangeLabel, bldgTag);
                                     titleOnSheet = string.Format("{0} - {1} LIFE SAFETY PLAN", bldgTag, rangeLabel.ToUpperInvariant());
+                                }
+                                break;
+                            case ViewPackageType.Custom:
+                            default:
+                                string pkgTitle = !string.IsNullOrEmpty(pkg.DisplayName) ? pkg.DisplayName.ToUpperInvariant() : "CUSTOM";
+                                if (pkg.ViewKind == ViewPlanKind.AreaPlan)
+                                {
+                                    string sch = !string.IsNullOrEmpty(pkg.SelectedAreaSchemeName) ? pkg.SelectedAreaSchemeName.ToUpperInvariant() : "AREA";
+                                    vName = string.Format("FL. {0} - {1} [{2}] ({3})", rangeLabel, pkgTitle, sch, bldgTag);
+                                    titleOnSheet = string.Format("{0} - {1} {2}", bldgTag, rangeLabel.ToUpperInvariant(), pkgTitle);
+                                }
+                                else if (pkg.ViewKind == ViewPlanKind.CeilingPlan)
+                                {
+                                    vName = string.Format("FL. {0} - {1} RCP ({2})", rangeLabel, pkgTitle, bldgTag);
+                                    titleOnSheet = string.Format("{0} - {1} {2}", bldgTag, rangeLabel.ToUpperInvariant(), pkgTitle);
+                                }
+                                else
+                                {
+                                    vName = string.Format("FL. {0} - {1} ({2})", rangeLabel, pkgTitle, bldgTag);
+                                    titleOnSheet = string.Format("{0} - {1} {2}", bldgTag, rangeLabel.ToUpperInvariant(), pkgTitle);
                                 }
                                 break;
                         }
@@ -1184,7 +1241,7 @@ namespace ZoningFloorArea.ViewModels
                 Dictionary<string, ElementId> createdViews = _viewGenService.GeneratePackageViews(
                     Buildings.ToList(),
                     Config,
-                    PackageSettings,
+                    PackageSettings.ToList(),
                     SelectedViewScale,
                     OnlyTypicalRanges);
 
