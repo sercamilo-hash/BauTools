@@ -1829,6 +1829,67 @@ namespace ZoningFloorArea.Views
             formGrid.Children.Add(sFar);
 
             leftStack.Children.Add(formGrid);
+
+            // Mapping Parameters Section (Deduction Scheme, Deduction Type Parameter, Building Parameter)
+            WpfGrid mapGrid = new WpfGrid { Margin = new Thickness(0, 8, 0, 0) };
+            mapGrid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1.1, GridUnitType.Star) }); // Deduction Scheme
+            mapGrid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(8) });
+            mapGrid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1.1, GridUnitType.Star) }); // Deduction Param
+            mapGrid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(8) });
+            mapGrid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });   // Building Param
+
+            // 1. Deduction Scheme
+            StackPanel sDedScheme = new StackPanel();
+            sDedScheme.Children.Add(new WpfTextBlock { Text = "Esquema Deducciones:", FontSize = 9, Foreground = new SolidColorBrush(COL_TEXT_MUTED), Margin = new Thickness(0, 0, 0, 2) });
+            WpfComboBox comboDedScheme = new WpfComboBox { Height = 25, FontSize = 10.5, ItemsSource = _vm.AreaSchemes, SelectedItem = _vm.Config.DeductionAreaSchemeName };
+            comboDedScheme.SelectionChanged += (s, e) =>
+            {
+                if (comboDedScheme.SelectedItem != null && comboDedScheme.SelectedItem.ToString() != _vm.Config.DeductionAreaSchemeName)
+                {
+                    _vm.Config.DeductionAreaSchemeName = comboDedScheme.SelectedItem.ToString();
+                    _vm.CalculateTable();
+                    RefreshCalculateUI();
+                }
+            };
+            sDedScheme.Children.Add(comboDedScheme);
+            WpfGrid.SetColumn(sDedScheme, 0);
+            mapGrid.Children.Add(sDedScheme);
+
+            // 2. Deduction Parameter (separates categories like Stairs, Mechanical, Chase Walls, etc.)
+            StackPanel sDedParam = new StackPanel();
+            sDedParam.Children.Add(new WpfTextBlock { Text = "Parámetro Deducción:", FontSize = 9, FontWeight = FontWeights.SemiBold, Foreground = new SolidColorBrush((WpfColor)ColorConverter.ConvertFromString("#2563EB")), Margin = new Thickness(0, 0, 0, 2) });
+            WpfComboBox comboDedParam = new WpfComboBox { Height = 25, FontSize = 10.5, ItemsSource = _vm.AvailableParameters, SelectedItem = _vm.Config.DeductionTypeParameterName };
+            comboDedParam.SelectionChanged += (s, e) =>
+            {
+                if (comboDedParam.SelectedItem != null && comboDedParam.SelectedItem.ToString() != _vm.Config.DeductionTypeParameterName)
+                {
+                    _vm.Config.DeductionTypeParameterName = comboDedParam.SelectedItem.ToString();
+                    _vm.CalculateTable();
+                    RefreshCalculateUI();
+                }
+            };
+            sDedParam.Children.Add(comboDedParam);
+            WpfGrid.SetColumn(sDedParam, 2);
+            mapGrid.Children.Add(sDedParam);
+
+            // 3. Building Parameter
+            StackPanel sBldgParam = new StackPanel();
+            sBldgParam.Children.Add(new WpfTextBlock { Text = "Parámetro Edificio:", FontSize = 9, Foreground = new SolidColorBrush(COL_TEXT_MUTED), Margin = new Thickness(0, 0, 0, 2) });
+            WpfComboBox comboBldgParam = new WpfComboBox { Height = 25, FontSize = 10.5, ItemsSource = _vm.AvailableParameters, SelectedItem = _vm.Config.BuildingParameterName };
+            comboBldgParam.SelectionChanged += (s, e) =>
+            {
+                if (comboBldgParam.SelectedItem != null && comboBldgParam.SelectedItem.ToString() != _vm.Config.BuildingParameterName)
+                {
+                    _vm.Config.BuildingParameterName = comboBldgParam.SelectedItem.ToString();
+                    _vm.CalculateTable();
+                    RefreshCalculateUI();
+                }
+            };
+            sBldgParam.Children.Add(comboBldgParam);
+            WpfGrid.SetColumn(sBldgParam, 4);
+            mapGrid.Children.Add(sBldgParam);
+
+            leftStack.Children.Add(mapGrid);
             WpfGrid.SetColumn(leftStack, 0);
             hudGrid.Children.Add(leftStack);
 
