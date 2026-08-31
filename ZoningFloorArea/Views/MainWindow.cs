@@ -2396,15 +2396,15 @@ namespace ZoningFloorArea.Views
                 pCardStack.Children.Add(r1Grid);
 
                 // Row 1.5: View Plan Kind (Tipo de Vista) + Revit Area Scheme Dropdown
-                WpfGrid rKindGrid = new WpfGrid { Margin = new Thickness(0, 0, 0, 6) };
+                WpfGrid rKindGrid = new WpfGrid { Margin = new Thickness(0, 0, 0, 4) };
                 rKindGrid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1.3, GridUnitType.Star) }); // View Kind
                 rKindGrid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(6) });
                 rKindGrid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1.7, GridUnitType.Star) }); // Area Scheme
 
                 // View Kind Dropdown
                 StackPanel vkStack = new StackPanel();
-                vkStack.Children.Add(new WpfTextBlock { Text = "Tipo de Plano:", FontSize = 8.5, Foreground = new SolidColorBrush(COL_TEXT_MUTED) });
-                WpfComboBox comboVk = new WpfComboBox { Height = 24, FontSize = 10 };
+                vkStack.Children.Add(new WpfTextBlock { Text = "Tipo de Vista a Generar:", FontSize = 9, FontWeight = FontWeights.SemiBold, Foreground = new SolidColorBrush(COL_TEXT_MAIN) });
+                WpfComboBox comboVk = new WpfComboBox { Height = 25, FontSize = 10 };
                 comboVk.Items.Add("🏢 Floor Plan (Arquitectura)");
                 comboVk.Items.Add("📐 Area Plan (Planta de Áreas)");
                 comboVk.Items.Add("💡 Reflected Ceiling (RCP)");
@@ -2419,8 +2419,8 @@ namespace ZoningFloorArea.Views
 
                 // Area Scheme Dropdown
                 StackPanel asStack = new StackPanel();
-                asStack.Children.Add(new WpfTextBlock { Text = "Esquema de Área (Revit Scheme):", FontSize = 8.5, Foreground = new SolidColorBrush(COL_TEXT_MUTED) });
-                WpfComboBox comboAs = new WpfComboBox { Height = 24, FontSize = 10, ItemsSource = _vm.AreaSchemes };
+                asStack.Children.Add(new WpfTextBlock { Text = "Esquema de Área (Revit AreaScheme):", FontSize = 9, FontWeight = FontWeights.SemiBold, Foreground = new SolidColorBrush(COL_TEXT_MAIN) });
+                WpfComboBox comboAs = new WpfComboBox { Height = 25, FontSize = 10, ItemsSource = _vm.AreaSchemes };
 
                 if (!string.IsNullOrEmpty(currentPkg.SelectedAreaSchemeName))
                 {
@@ -2438,6 +2438,35 @@ namespace ZoningFloorArea.Views
 
                 comboAs.IsEnabled = (currentPkg.ViewKind == ViewPlanKind.AreaPlan);
 
+                // Informative Status Text
+                WpfTextBlock txtSchemeDesc = new WpfTextBlock
+                {
+                    FontSize = 8.5,
+                    Margin = new Thickness(0, 2, 0, 4),
+                    FontWeight = FontWeights.Medium
+                };
+
+                Action updateDesc = () =>
+                {
+                    if (currentPkg.ViewKind == ViewPlanKind.AreaPlan)
+                    {
+                        string sName = comboAs.SelectedItem != null ? comboAs.SelectedItem.ToString() : (currentPkg.SelectedAreaSchemeName ?? "No seleccionado");
+                        txtSchemeDesc.Text = string.Format("✓ Revit generará vistas tipo 'Area Plan' asociadas al esquema: \"{0}\"", sName);
+                        txtSchemeDesc.Foreground = new SolidColorBrush((WpfColor)ColorConverter.ConvertFromString("#7C3AED")); // Purple
+                    }
+                    else if (currentPkg.ViewKind == ViewPlanKind.CeilingPlan)
+                    {
+                        txtSchemeDesc.Text = "✓ Revit generará vistas tipo 'Reflected Ceiling Plan (RCP)'";
+                        txtSchemeDesc.Foreground = new SolidColorBrush((WpfColor)ColorConverter.ConvertFromString("#D97706")); // Amber
+                    }
+                    else
+                    {
+                        txtSchemeDesc.Text = "✓ Revit generará plantas de piso estándar ('Floor Plan')";
+                        txtSchemeDesc.Foreground = new SolidColorBrush((WpfColor)ColorConverter.ConvertFromString("#2563EB")); // Blue
+                    }
+                };
+                updateDesc();
+
                 comboVk.SelectionChanged += (s, e) =>
                 {
                     switch (comboVk.SelectedIndex)
@@ -2451,6 +2480,7 @@ namespace ZoningFloorArea.Views
                     {
                         currentPkg.SelectedAreaSchemeName = comboAs.SelectedItem.ToString();
                     }
+                    updateDesc();
                     RefreshStep4PreviewUI();
                 };
 
@@ -2459,6 +2489,7 @@ namespace ZoningFloorArea.Views
                     if (comboAs.SelectedItem != null)
                     {
                         currentPkg.SelectedAreaSchemeName = comboAs.SelectedItem.ToString();
+                        updateDesc();
                         RefreshStep4PreviewUI();
                     }
                 };
@@ -2472,6 +2503,7 @@ namespace ZoningFloorArea.Views
                 rKindGrid.Children.Add(asStack);
 
                 pCardStack.Children.Add(rKindGrid);
+                pCardStack.Children.Add(txtSchemeDesc);
 
                 // Row 2: Matrix Layout (1 to 8) + View Template + Scale
                 WpfGrid r2Grid = new WpfGrid();
