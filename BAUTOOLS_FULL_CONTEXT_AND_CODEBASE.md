@@ -5034,9 +5034,25 @@ namespace ZoningFloorArea.Services
                 string usageCategory = GetParameterStringValue(area, config.UsageCategoryParameterName);
                 if (string.IsNullOrEmpty(usageCategory))
                 {
-                    usageCategory = "Residential";
+                    string comm = GetParameterStringValue(area, "Comments");
+                    string name = area.Name ?? string.Empty;
+                    if (comm.IndexOf("Commercial", StringComparison.OrdinalIgnoreCase) >= 0 ||
+                        comm.IndexOf("Comercial", StringComparison.OrdinalIgnoreCase) >= 0 ||
+                        comm.IndexOf("Retail", StringComparison.OrdinalIgnoreCase) >= 0 ||
+                        name.IndexOf("Commercial", StringComparison.OrdinalIgnoreCase) >= 0 ||
+                        name.IndexOf("Comercial", StringComparison.OrdinalIgnoreCase) >= 0 ||
+                        name.IndexOf("Retail", StringComparison.OrdinalIgnoreCase) >= 0)
+                    {
+                        usageCategory = "Commercial";
+                    }
+                    else
+                    {
+                        usageCategory = "Residential";
+                    }
                 }
-                else if (usageCategory.IndexOf("Commercial", StringComparison.OrdinalIgnoreCase) >= 0)
+                else if (usageCategory.IndexOf("Commercial", StringComparison.OrdinalIgnoreCase) >= 0 ||
+                         usageCategory.IndexOf("Comercial", StringComparison.OrdinalIgnoreCase) >= 0 ||
+                         usageCategory.IndexOf("Retail", StringComparison.OrdinalIgnoreCase) >= 0)
                 {
                     usageCategory = "Commercial";
                 }
