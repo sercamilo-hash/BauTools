@@ -53,6 +53,27 @@ namespace ZoningFloorArea.Services
             return list;
         }
 
+        public List<string> GetAvailableAreaSchemes()
+        {
+            List<string> list = new List<string>();
+            try
+            {
+                FilteredElementCollector collector = new FilteredElementCollector(_doc).OfClass(typeof(AreaScheme));
+                foreach (AreaScheme s in collector)
+                {
+                    if (s != null && !string.IsNullOrEmpty(s.Name) && !list.Contains(s.Name))
+                    {
+                        list.Add(s.Name);
+                    }
+                }
+            }
+            catch
+            {
+            }
+            list.Sort();
+            return list;
+        }
+
         public List<string> GetAvailableViewStringParameters()
         {
             List<string> paramsList = new List<string>();
@@ -105,10 +126,6 @@ namespace ZoningFloorArea.Services
             Dictionary<string, ElementId> scopeBoxMap = GetScopeBoxElementMap();
             ViewFamilyType floorPlanVft = GetViewFamilyType(ViewFamily.FloorPlan);
             ViewFamilyType ceilingPlanVft = GetViewFamilyType(ViewFamily.CeilingPlan);
-            ViewFamilyType areaPlanVft = GetViewFamilyType(ViewFamily.AreaPlan);
-
-            AreaScheme grossScheme = !string.IsNullOrEmpty(config.GrossAreaSchemeName) ? GetAreaSchemeByName(config.GrossAreaSchemeName) : null;
-            AreaScheme dedScheme = !string.IsNullOrEmpty(config.DeductionAreaSchemeName) ? GetAreaSchemeByName(config.DeductionAreaSchemeName) : null;
 
             ElementId masterScopeBoxId = ElementId.InvalidElementId;
             if (!string.IsNullOrEmpty(config.MasterScopeBoxName) && scopeBoxMap.ContainsKey(config.MasterScopeBoxName))
@@ -143,14 +160,11 @@ namespace ZoningFloorArea.Services
                                 if (srcLevel == null) continue;
 
                                 string rangeLabel = GetGroupRangeLabel(group);
-                                string viewName = string.Format("FL. {0} - MASTER OVERALL FLOOR PLAN", rangeLabel);
-                                string titleOnSheet = string.Format("MASTER - {0} OVERALL FLOOR PLAN", rangeLabel.ToUpperInvariant());
+                                string kindSuffix = (pkg.ViewKind == ViewPlanKind.AreaPlan) ? "AREA PLAN" : "FLOOR PLAN";
+                                string viewName = string.Format("FL. {0} - MASTER OVERALL {1}", rangeLabel, kindSuffix);
+                                string titleOnSheet = string.Format("MASTER - {0} OVERALL {1}", rangeLabel.ToUpperInvariant(), kindSuffix);
 
-                                ViewPlan plan = null;
-                                if (floorPlanVft != null)
-                                {
-                                    plan = ViewPlan.Create(_doc, floorPlanVft.Id, srcLevel.Id);
-                                }
+                                ViewPlan plan = CreateOrDuplicatePlanView(pkg.ViewKind, pkg.SelectedAreaSchemeName, srcLevel, floorPlanVft, ceilingPlanVft, config);
 
                                 if (plan != null)
                                 {
@@ -196,57 +210,55 @@ namespace ZoningFloorArea.Services
                             string rangeLabel = GetGroupRangeLabel(group);
                             string bldgTag = bldg.Name.ToUpperInvariant();
 
-                            ViewPlan plan = null;
                             string viewName = "";
                             string titleOnSheet = "";
 
                             switch (pkg.PackageType)
                             {
+                                case ViewPackageType.GrossArea:
+                                    viewName = string.Format("FL. {0} - GROSS AREA PLAN ({1})", rangeLabel, bldgTag);
+                                    titleOnSheet = string.Format("{0} - {1} GROSS AREA PLAN", bldgTag, rangeLabel.ToUpperInvariant());
+                                    break;
+
+                                case ViewPackageType.Deductions:
+                                    viewName = string.Format("FL. {0} - DEDUCTIONS PLAN ({1})", rangeLabel, bldgTag);
+                                    titleOnSheet = string.Format("{0} - {1} DEDUCTIONS PLAN", bldgTag, rangeLabel.ToUpperInvariant());
+                                    break;
+
                                 case ViewPackageType.Architectural:
-                                    if (floorPlanVft != null)
+                                    if (pkg.ViewKind == ViewPlanKind.AreaPlan)
                                     {
-                                        plan = ViewPlan.Create(_doc, floorPlanVft.Id, srcLevel.Id);
+                                        string schName = !string.IsNullOrEmpty(pkg.SelectedAreaSchemeName) ? pkg.SelectedAreaSchemeName : "Area";
+                                        viewName = string.Format("FL. {0} - {1} PLAN ({2})", rangeLabel, schName.ToUpperInvariant(), bldgTag);
+                                        titleOnSheet = string.Format("{0} - {1} {2} PLAN", bldgTag, rangeLabel.ToUpperInvariant(), schName.ToUpperInvariant());
+                                    }
+                                    else
+                                    {
                                         viewName = string.Format("FL. {0} - ARCHITECTURAL PLAN ({1})", rangeLabel, bldgTag);
                                         titleOnSheet = string.Format("{0} - {1} FLOOR PLAN", bldgTag, rangeLabel.ToUpperInvariant());
                                     }
                                     break;
 
                                 case ViewPackageType.CeilingPlanRCP:
-                                    if (ceilingPlanVft != null)
-                                    {
-                                        plan = ViewPlan.Create(_doc, ceilingPlanVft.Id, srcLevel.Id);
-                                        viewName = string.Format("FL. {0} - CEILING PLAN RCP ({1})", rangeLabel, bldgTag);
-                                        titleOnSheet = string.Format("{0} - {1} REFLECTED CEILING PLAN", bldgTag, rangeLabel.ToUpperInvariant());
-                                    }
-                                    break;
-
-                                case ViewPackageType.GrossArea:
-                                    if (grossScheme != null)
-                                    {
-                                        plan = ViewPlan.CreateAreaPlan(_doc, grossScheme.Id, srcLevel.Id);
-                                        viewName = string.Format("FL. {0} - GROSS AREA PLAN ({1})", rangeLabel, bldgTag);
-                                        titleOnSheet = string.Format("{0} - {1} GROSS AREA PLAN", bldgTag, rangeLabel.ToUpperInvariant());
-                                    }
-                                    break;
-
-                                case ViewPackageType.Deductions:
-                                    if (dedScheme != null)
-                                    {
-                                        plan = ViewPlan.CreateAreaPlan(_doc, dedScheme.Id, srcLevel.Id);
-                                        viewName = string.Format("FL. {0} - DEDUCTIONS PLAN ({1})", rangeLabel, bldgTag);
-                                        titleOnSheet = string.Format("{0} - {1} DEDUCTIONS PLAN", bldgTag, rangeLabel.ToUpperInvariant());
-                                    }
+                                    viewName = string.Format("FL. {0} - CEILING PLAN RCP ({1})", rangeLabel, bldgTag);
+                                    titleOnSheet = string.Format("{0} - {1} REFLECTED CEILING PLAN", bldgTag, rangeLabel.ToUpperInvariant());
                                     break;
 
                                 case ViewPackageType.EgressLifeSafety:
-                                    if (floorPlanVft != null)
+                                    if (pkg.ViewKind == ViewPlanKind.AreaPlan)
                                     {
-                                        plan = ViewPlan.Create(_doc, floorPlanVft.Id, srcLevel.Id);
+                                        viewName = string.Format("FL. {0} - LIFE SAFETY AREA PLAN ({1})", rangeLabel, bldgTag);
+                                        titleOnSheet = string.Format("{0} - {1} LIFE SAFETY AREA PLAN", bldgTag, rangeLabel.ToUpperInvariant());
+                                    }
+                                    else
+                                    {
                                         viewName = string.Format("FL. {0} - LIFE SAFETY PLAN ({1})", rangeLabel, bldgTag);
                                         titleOnSheet = string.Format("{0} - {1} LIFE SAFETY PLAN", bldgTag, rangeLabel.ToUpperInvariant());
                                     }
                                     break;
                             }
+
+                            ViewPlan plan = CreateOrDuplicatePlanView(pkg.ViewKind, pkg.SelectedAreaSchemeName, srcLevel, floorPlanVft, ceilingPlanVft, config);
 
                             if (plan != null)
                             {
@@ -279,6 +291,170 @@ namespace ZoningFloorArea.Services
             }
 
             return createdMap;
+        }
+
+        private ViewPlan CreateOrDuplicatePlanView(
+            ViewPlanKind viewKind,
+            string areaSchemeName,
+            Level srcLevel,
+            ViewFamilyType floorPlanVft,
+            ViewFamilyType ceilingPlanVft,
+            MappingConfig config)
+        {
+            if (srcLevel == null) return null;
+
+            ViewPlan plan = null;
+
+            if (viewKind == ViewPlanKind.AreaPlan)
+            {
+                AreaScheme scheme = null;
+                if (!string.IsNullOrEmpty(areaSchemeName))
+                {
+                    scheme = GetAreaSchemeByName(areaSchemeName);
+                }
+                if (scheme == null && !string.IsNullOrEmpty(config.GrossAreaSchemeName))
+                {
+                    scheme = GetAreaSchemeByName(config.GrossAreaSchemeName);
+                }
+                if (scheme == null)
+                {
+                    scheme = new FilteredElementCollector(_doc)
+                        .OfClass(typeof(AreaScheme))
+                        .Cast<AreaScheme>()
+                        .FirstOrDefault();
+                }
+
+                if (scheme != null)
+                {
+                    try
+                    {
+                        plan = ViewPlan.CreateAreaPlan(_doc, scheme.Id, srcLevel.Id);
+                    }
+                    catch
+                    {
+                        ViewPlan existing = FindExistingAreaPlan(scheme.Id, srcLevel.Id);
+                        if (existing != null)
+                        {
+                            try
+                            {
+                                ElementId dupId = existing.Duplicate(ViewDuplicateOption.WithDetailing);
+                                plan = _doc.GetElement(dupId) as ViewPlan;
+                            }
+                            catch
+                            {
+                                try
+                                {
+                                    ElementId dupId = existing.Duplicate(ViewDuplicateOption.Duplicate);
+                                    plan = _doc.GetElement(dupId) as ViewPlan;
+                                }
+                                catch { }
+                            }
+                        }
+                    }
+                }
+                else
+                {
+                    if (floorPlanVft != null)
+                    {
+                        try { plan = ViewPlan.Create(_doc, floorPlanVft.Id, srcLevel.Id); }
+                        catch
+                        {
+                            ViewPlan existing = FindExistingFloorPlan(srcLevel.Id);
+                            if (existing != null)
+                            {
+                                ElementId dupId = existing.Duplicate(ViewDuplicateOption.WithDetailing);
+                                plan = _doc.GetElement(dupId) as ViewPlan;
+                            }
+                        }
+                    }
+                }
+            }
+            else if (viewKind == ViewPlanKind.CeilingPlan)
+            {
+                if (ceilingPlanVft != null)
+                {
+                    try { plan = ViewPlan.Create(_doc, ceilingPlanVft.Id, srcLevel.Id); }
+                    catch
+                    {
+                        ViewPlan existing = FindExistingCeilingPlan(srcLevel.Id);
+                        if (existing != null)
+                        {
+                            ElementId dupId = existing.Duplicate(ViewDuplicateOption.WithDetailing);
+                            plan = _doc.GetElement(dupId) as ViewPlan;
+                        }
+                    }
+                }
+            }
+            else // FloorPlan
+            {
+                if (floorPlanVft != null)
+                {
+                    try { plan = ViewPlan.Create(_doc, floorPlanVft.Id, srcLevel.Id); }
+                    catch
+                    {
+                        ViewPlan existing = FindExistingFloorPlan(srcLevel.Id);
+                        if (existing != null)
+                        {
+                            ElementId dupId = existing.Duplicate(ViewDuplicateOption.WithDetailing);
+                            plan = _doc.GetElement(dupId) as ViewPlan;
+                        }
+                    }
+                }
+            }
+
+            return plan;
+        }
+
+        private ViewPlan FindExistingAreaPlan(ElementId schemeId, ElementId levelId)
+        {
+            try
+            {
+                return new FilteredElementCollector(_doc)
+                    .OfClass(typeof(ViewPlan))
+                    .Cast<ViewPlan>()
+                    .FirstOrDefault(v => !v.IsTemplate && 
+                                         v.ViewType == ViewType.AreaPlan && 
+                                         v.GenLevel != null && v.GenLevel.Id == levelId &&
+                                         v.AreaScheme != null && v.AreaScheme.Id == schemeId);
+            }
+            catch
+            {
+                return null;
+            }
+        }
+
+        private ViewPlan FindExistingFloorPlan(ElementId levelId)
+        {
+            try
+            {
+                return new FilteredElementCollector(_doc)
+                    .OfClass(typeof(ViewPlan))
+                    .Cast<ViewPlan>()
+                    .FirstOrDefault(v => !v.IsTemplate && 
+                                         v.ViewType == ViewType.FloorPlan && 
+                                         v.GenLevel != null && v.GenLevel.Id == levelId);
+            }
+            catch
+            {
+                return null;
+            }
+        }
+
+        private ViewPlan FindExistingCeilingPlan(ElementId levelId)
+        {
+            try
+            {
+                return new FilteredElementCollector(_doc)
+                    .OfClass(typeof(ViewPlan))
+                    .Cast<ViewPlan>()
+                    .FirstOrDefault(v => !v.IsTemplate && 
+                                         v.ViewType == ViewType.CeilingPlan && 
+                                         v.GenLevel != null && v.GenLevel.Id == levelId);
+            }
+            catch
+            {
+                return null;
+            }
         }
 
         private void SetTitleOnSheetParameter(View view, string titleText)

@@ -2206,6 +2206,84 @@ namespace ZoningFloorArea.Views
                 r1Grid.Children.Add(txtPfx);
                 pCardStack.Children.Add(r1Grid);
 
+                // Row 1.5: View Plan Kind (Tipo de Vista) + Revit Area Scheme Dropdown
+                WpfGrid rKindGrid = new WpfGrid { Margin = new Thickness(0, 0, 0, 6) };
+                rKindGrid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1.3, GridUnitType.Star) }); // View Kind
+                rKindGrid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(6) });
+                rKindGrid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1.7, GridUnitType.Star) }); // Area Scheme
+
+                // View Kind Dropdown
+                StackPanel vkStack = new StackPanel();
+                vkStack.Children.Add(new WpfTextBlock { Text = "Tipo de Plano:", FontSize = 8.5, Foreground = new SolidColorBrush(COL_TEXT_MUTED) });
+                WpfComboBox comboVk = new WpfComboBox { Height = 24, FontSize = 10 };
+                comboVk.Items.Add("🏢 Floor Plan (Arquitectura)");
+                comboVk.Items.Add("📐 Area Plan (Planta de Áreas)");
+                comboVk.Items.Add("💡 Reflected Ceiling (RCP)");
+
+                switch (currentPkg.ViewKind)
+                {
+                    case ViewPlanKind.FloorPlan: comboVk.SelectedIndex = 0; break;
+                    case ViewPlanKind.AreaPlan: comboVk.SelectedIndex = 1; break;
+                    case ViewPlanKind.CeilingPlan: comboVk.SelectedIndex = 2; break;
+                    default: comboVk.SelectedIndex = 0; break;
+                }
+
+                // Area Scheme Dropdown
+                StackPanel asStack = new StackPanel();
+                asStack.Children.Add(new WpfTextBlock { Text = "Esquema de Área (Revit Scheme):", FontSize = 8.5, Foreground = new SolidColorBrush(COL_TEXT_MUTED) });
+                WpfComboBox comboAs = new WpfComboBox { Height = 24, FontSize = 10, ItemsSource = _vm.AreaSchemes };
+
+                if (!string.IsNullOrEmpty(currentPkg.SelectedAreaSchemeName))
+                {
+                    comboAs.SelectedItem = currentPkg.SelectedAreaSchemeName;
+                }
+                else if (_vm.AreaSchemes.Count > 0)
+                {
+                    if (currentPkg.PackageType == ViewPackageType.GrossArea && !string.IsNullOrEmpty(_vm.Config.GrossAreaSchemeName))
+                        comboAs.SelectedItem = _vm.Config.GrossAreaSchemeName;
+                    else if (currentPkg.PackageType == ViewPackageType.Deductions && !string.IsNullOrEmpty(_vm.Config.DeductionAreaSchemeName))
+                        comboAs.SelectedItem = _vm.Config.DeductionAreaSchemeName;
+                    else
+                        comboAs.SelectedIndex = 0;
+                }
+
+                comboAs.IsEnabled = (currentPkg.ViewKind == ViewPlanKind.AreaPlan);
+
+                comboVk.SelectionChanged += (s, e) =>
+                {
+                    switch (comboVk.SelectedIndex)
+                    {
+                        case 0: currentPkg.ViewKind = ViewPlanKind.FloorPlan; break;
+                        case 1: currentPkg.ViewKind = ViewPlanKind.AreaPlan; break;
+                        case 2: currentPkg.ViewKind = ViewPlanKind.CeilingPlan; break;
+                    }
+                    comboAs.IsEnabled = (currentPkg.ViewKind == ViewPlanKind.AreaPlan);
+                    if (currentPkg.ViewKind == ViewPlanKind.AreaPlan && comboAs.SelectedItem != null)
+                    {
+                        currentPkg.SelectedAreaSchemeName = comboAs.SelectedItem.ToString();
+                    }
+                    RefreshStep4PreviewUI();
+                };
+
+                comboAs.SelectionChanged += (s, e) =>
+                {
+                    if (comboAs.SelectedItem != null)
+                    {
+                        currentPkg.SelectedAreaSchemeName = comboAs.SelectedItem.ToString();
+                        RefreshStep4PreviewUI();
+                    }
+                };
+
+                vkStack.Children.Add(comboVk);
+                WpfGrid.SetColumn(vkStack, 0);
+                rKindGrid.Children.Add(vkStack);
+
+                asStack.Children.Add(comboAs);
+                WpfGrid.SetColumn(asStack, 2);
+                rKindGrid.Children.Add(asStack);
+
+                pCardStack.Children.Add(rKindGrid);
+
                 // Row 2: Matrix Layout (1 to 8) + View Template + Scale
                 WpfGrid r2Grid = new WpfGrid();
                 r2Grid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1.1, GridUnitType.Star) }); // Matrix
@@ -2601,13 +2679,43 @@ namespace ZoningFloorArea.Views
                         TextTrimming = TextTrimming.CharacterEllipsis
                     });
 
+                    // View Kind & Area Scheme Badge
+                    string kindBadgeText = "";
+                    string kindBadgeCol = "#2563EB";
+                    if (vp.ViewKind == ViewPlanKind.AreaPlan)
+                    {
+                        string sName = !string.IsNullOrEmpty(vp.AreaSchemeName) ? vp.AreaSchemeName : "Area";
+                        kindBadgeText = string.Format("📐 Area: {0}", sName);
+                        kindBadgeCol = "#7C3AED"; // Purple
+                    }
+                    else if (vp.ViewKind == ViewPlanKind.CeilingPlan)
+                    {
+                        kindBadgeText = "💡 RCP Ceiling";
+                        kindBadgeCol = "#D97706"; // Amber
+                    }
+                    else
+                    {
+                        kindBadgeText = "🏢 Floor Plan";
+                        kindBadgeCol = "#2563EB"; // Blue
+                    }
+
+                    vpContent.Children.Add(new WpfTextBlock
+                    {
+                        Text = kindBadgeText,
+                        FontSize = 8,
+                        FontWeight = FontWeights.SemiBold,
+                        Foreground = new SolidColorBrush((WpfColor)ColorConverter.ConvertFromString(kindBadgeCol)),
+                        HorizontalAlignment = HorizontalAlignment.Center,
+                        Margin = new Thickness(0, 1, 0, 1)
+                    });
+
                     string scopeBoxLabel = !string.IsNullOrEmpty(vp.ScopeBoxName) && vp.ScopeBoxName != "(None)" ?
                         string.Format("🟢 Scope: {0}", vp.ScopeBoxName) : "⚪ No Scope Box";
 
                     vpContent.Children.Add(new WpfTextBlock
                     {
                         Text = scopeBoxLabel,
-                        FontSize = 8,
+                        FontSize = 7.5,
                         Foreground = new SolidColorBrush((WpfColor)ColorConverter.ConvertFromString("#10B981")),
                         HorizontalAlignment = HorizontalAlignment.Center
                     });

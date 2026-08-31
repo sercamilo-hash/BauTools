@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.Collections.Generic;
 using Autodesk.Revit.DB;
 
@@ -12,6 +12,13 @@ namespace ZoningFloorArea.Models
         Quad4Views = 4,
         Hex6Views = 6,
         Octo8Views = 8
+    }
+
+    public enum ViewPlanKind
+    {
+        FloorPlan = 0,    // Standard Architectural Floor Plan
+        AreaPlan = 1,     // Area Plan (associated with an AreaScheme)
+        CeilingPlan = 2   // Reflected Ceiling Plan (RCP)
     }
 
     public enum ViewPackageType
@@ -61,6 +68,9 @@ namespace ZoningFloorArea.Models
     public class PackageSetting
     {
         public ViewPackageType PackageType { get; set; }
+        public ViewPlanKind ViewKind { get; set; }
+        public string SelectedAreaSchemeName { get; set; }
+        public ElementId SelectedAreaSchemeId { get; set; }
         public string DisplayName { get; set; }
         public string Icon { get; set; }
         public bool IsEnabled { get; set; }
@@ -74,9 +84,12 @@ namespace ZoningFloorArea.Models
         public string RecommendedScaleDisplay { get; set; }
         public bool IncludeSummaryTableOnSheet { get; set; }
 
-        public PackageSetting(ViewPackageType type, string name, string icon, string prefix, int startNum, SheetLayoutMode defaultLayout, int defaultScale, string scaleDisp)
+        public PackageSetting(ViewPackageType type, string name, string icon, string prefix, int startNum, SheetLayoutMode defaultLayout, int defaultScale, string scaleDisp, ViewPlanKind viewKind = ViewPlanKind.FloorPlan, string defaultScheme = "")
         {
             PackageType = type;
+            ViewKind = viewKind;
+            SelectedAreaSchemeName = defaultScheme ?? string.Empty;
+            SelectedAreaSchemeId = ElementId.InvalidElementId;
             DisplayName = name;
             Icon = icon;
             IsEnabled = true;
@@ -101,11 +114,15 @@ namespace ZoningFloorArea.Models
         public string ViewName { get; set; }
         public string FormattedTitleOnSheet { get; set; }
         public ViewPackageType PackageType { get; set; }
+        public ViewPlanKind ViewKind { get; set; }
+        public string AreaSchemeName { get; set; }
         public int GridIndex { get; set; } // 0 to 7
         public ElementId ExistingViewId { get; set; }
 
         public PlannedViewport()
         {
+            ViewKind = ViewPlanKind.FloorPlan;
+            AreaSchemeName = string.Empty;
             GridIndex = 0;
             ExistingViewId = ElementId.InvalidElementId;
         }
