@@ -1393,6 +1393,11 @@ namespace ZoningFloorArea.ViewModels
             return _duplicator.GetLevelAreaSummary(levelName, Config.GrossAreaSchemeName, Config.DeductionAreaSchemeName);
         }
 
+        public string GetSourceLevelDetail(string levelName)
+        {
+            return _duplicator.GetLevelAreaDetail(levelName, Config.GrossAreaSchemeName, Config.DeductionAreaSchemeName, Config.DeductionTypeParameterName);
+        }
+
         public void RevertPropagatedAreas()
         {
             try

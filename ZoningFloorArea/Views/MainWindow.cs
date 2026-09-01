@@ -1393,7 +1393,7 @@ namespace ZoningFloorArea.Views
                 BorderThickness = new Thickness(1),
                 CornerRadius = new CornerRadius(6),
                 Padding = new Thickness(12, 8, 12, 8),
-                Margin = new Thickness(0, 0, 0, 14)
+                Margin = new Thickness(0, 0, 0, 12)
             };
             WpfTextBlock alertText = new WpfTextBlock
             {
@@ -1406,8 +1406,180 @@ namespace ZoningFloorArea.Views
             WpfGrid.SetRow(alertBox, 1);
             cardLayout.Children.Add(alertBox);
 
+            // ── Deduction & Scheme Parameter Configuration Banner in Step 2 ──
+            Border mapBox = new Border
+            {
+                Background = new SolidColorBrush((WpfColor)ColorConverter.ConvertFromString("#F8FAFC")),
+                BorderBrush = new SolidColorBrush((WpfColor)ColorConverter.ConvertFromString("#E2E8F0")),
+                BorderThickness = new Thickness(1),
+                CornerRadius = new CornerRadius(6),
+                Padding = new Thickness(12, 10, 12, 10),
+                Margin = new Thickness(0, 0, 0, 12)
+            };
+
+            StackPanel mapStack = new StackPanel();
+
+            WpfTextBlock mapTitle = new WpfTextBlock
+            {
+                Text = "MAPEO DE ESQUEMAS Y PARÁMETRO DE FILTRO DE DEDUCCIONES:",
+                FontSize = 10.5,
+                FontWeight = FontWeights.Bold,
+                Foreground = new SolidColorBrush(COL_TEXT_MUTED),
+                Margin = new Thickness(0, 0, 0, 8)
+            };
+            mapStack.Children.Add(mapTitle);
+
+            WpfGrid mapGrid = new WpfGrid();
+            mapGrid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1.1, GridUnitType.Star) }); // Gross Scheme
+            mapGrid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(8) });
+            mapGrid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1.1, GridUnitType.Star) }); // Ded Scheme
+            mapGrid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(8) });
+            mapGrid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1.3, GridUnitType.Star) }); // Ded Param + Create btn
+            mapGrid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(8) });
+            mapGrid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });   // Bldg Param
+
+            // 1. Gross Scheme
+            StackPanel sGross = new StackPanel();
+            sGross.Children.Add(new WpfTextBlock { Text = "Esquema Gross:", FontSize = 9, Foreground = new SolidColorBrush(COL_TEXT_MUTED), Margin = new Thickness(0, 0, 0, 2) });
+            WpfComboBox comboGross = new WpfComboBox { Height = 25, FontSize = 10.5, ItemsSource = _vm.AreaSchemes, SelectedItem = _vm.Config.GrossAreaSchemeName };
+            comboGross.SelectionChanged += (s, e) =>
+            {
+                if (comboGross.SelectedItem != null && comboGross.SelectedItem.ToString() != _vm.Config.GrossAreaSchemeName)
+                {
+                    _vm.Config.GrossAreaSchemeName = comboGross.SelectedItem.ToString();
+                    RefreshPropagateReviewUI();
+                }
+            };
+            sGross.Children.Add(comboGross);
+            WpfGrid.SetColumn(sGross, 0);
+            mapGrid.Children.Add(sGross);
+
+            // 2. Deduction Scheme
+            StackPanel sDedScheme = new StackPanel();
+            sDedScheme.Children.Add(new WpfTextBlock { Text = "Esquema Deducciones:", FontSize = 9, Foreground = new SolidColorBrush(COL_TEXT_MUTED), Margin = new Thickness(0, 0, 0, 2) });
+            WpfComboBox comboDedScheme = new WpfComboBox { Height = 25, FontSize = 10.5, ItemsSource = _vm.AreaSchemes, SelectedItem = _vm.Config.DeductionAreaSchemeName };
+            comboDedScheme.SelectionChanged += (s, e) =>
+            {
+                if (comboDedScheme.SelectedItem != null && comboDedScheme.SelectedItem.ToString() != _vm.Config.DeductionAreaSchemeName)
+                {
+                    _vm.Config.DeductionAreaSchemeName = comboDedScheme.SelectedItem.ToString();
+                    RefreshPropagateReviewUI();
+                }
+            };
+            sDedScheme.Children.Add(comboDedScheme);
+            WpfGrid.SetColumn(sDedScheme, 2);
+            mapGrid.Children.Add(sDedScheme);
+
+            // 3. Deduction Filter Parameter + Create Button
+            StackPanel sDedParam = new StackPanel();
+            WpfGrid dHdrGrid = new WpfGrid { Margin = new Thickness(0, 0, 0, 2) };
+            dHdrGrid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
+            dHdrGrid.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
+
+            dHdrGrid.Children.Add(new WpfTextBlock
+            {
+                Text = "Parámetro Deducción:",
+                FontSize = 9,
+                FontWeight = FontWeights.SemiBold,
+                Foreground = new SolidColorBrush((WpfColor)ColorConverter.ConvertFromString("#2563EB")),
+                VerticalAlignment = VerticalAlignment.Center
+            });
+
+            WpfButton btnCreateParam = new WpfButton
+            {
+                Content = "➕ Crear 'Deductions'",
+                FontSize = 8.5,
+                FontWeight = FontWeights.SemiBold,
+                Padding = new Thickness(5, 1, 5, 1),
+                Height = 18,
+                Background = new SolidColorBrush((WpfColor)ColorConverter.ConvertFromString("#EEF2FF")),
+                Foreground = new SolidColorBrush((WpfColor)ColorConverter.ConvertFromString("#4F46E5")),
+                BorderBrush = new SolidColorBrush((WpfColor)ColorConverter.ConvertFromString("#C7D2FE")),
+                BorderThickness = new Thickness(1),
+                ToolTip = "Crear el parámetro compartido de texto 'Deductions' en Revit y vincularlo a Áreas automáticamente."
+            };
+            btnCreateParam.Click += (s, e) =>
+            {
+                _vm.CreateDeductionParameterInRevit("Deductions");
+                RefreshPropagateReviewUI();
+            };
+            WpfGrid.SetColumn(btnCreateParam, 1);
+            dHdrGrid.Children.Add(btnCreateParam);
+            sDedParam.Children.Add(dHdrGrid);
+
+            WpfComboBox comboDedParam = new WpfComboBox { Height = 25, FontSize = 10.5, ItemsSource = _vm.AvailableParameters, SelectedItem = _vm.Config.DeductionTypeParameterName };
+            comboDedParam.SelectionChanged += (s, e) =>
+            {
+                if (comboDedParam.SelectedItem != null && comboDedParam.SelectedItem.ToString() != _vm.Config.DeductionTypeParameterName)
+                {
+                    _vm.Config.DeductionTypeParameterName = comboDedParam.SelectedItem.ToString();
+                    RefreshPropagateReviewUI();
+                }
+            };
+            sDedParam.Children.Add(comboDedParam);
+            WpfGrid.SetColumn(sDedParam, 4);
+            mapGrid.Children.Add(sDedParam);
+
+            // 4. Building Parameter
+            StackPanel sBldgParam = new StackPanel();
+            sBldgParam.Children.Add(new WpfTextBlock { Text = "Parámetro Edificio:", FontSize = 9, Foreground = new SolidColorBrush(COL_TEXT_MUTED), Margin = new Thickness(0, 0, 0, 2) });
+            WpfComboBox comboBldgParam = new WpfComboBox { Height = 25, FontSize = 10.5, ItemsSource = _vm.AvailableParameters, SelectedItem = _vm.Config.BuildingParameterName };
+            comboBldgParam.SelectionChanged += (s, e) =>
+            {
+                if (comboBldgParam.SelectedItem != null && comboBldgParam.SelectedItem.ToString() != _vm.Config.BuildingParameterName)
+                {
+                    _vm.Config.BuildingParameterName = comboBldgParam.SelectedItem.ToString();
+                    RefreshPropagateReviewUI();
+                }
+            };
+            sBldgParam.Children.Add(comboBldgParam);
+            WpfGrid.SetColumn(sBldgParam, 6);
+            mapGrid.Children.Add(sBldgParam);
+
+            mapStack.Children.Add(mapGrid);
+
+            // Active Deduction Categories Badges Strip
+            StackPanel badgeStack = new StackPanel { Orientation = WpfOrientation.Horizontal, Margin = new Thickness(0, 8, 0, 0) };
+            badgeStack.Children.Add(new WpfTextBlock
+            {
+                Text = "Deducciones Estándar NYC: ",
+                FontSize = 9.5,
+                FontWeight = FontWeights.SemiBold,
+                Foreground = new SolidColorBrush(COL_TEXT_MUTED),
+                VerticalAlignment = VerticalAlignment.Center,
+                Margin = new Thickness(0, 0, 6, 0)
+            });
+
+            string[] standardCategories = new string[] { "CHASE WALL", "STAIRS", "PARKING", "BYCYCLE PARKING", "AMENITIES", "CORRIDOR", "MECH ROOM", "REFUSE" };
+            foreach (string cat in standardCategories)
+            {
+                Border catBadge = new Border
+                {
+                    Background = new SolidColorBrush((WpfColor)ColorConverter.ConvertFromString("#FEF08A")),
+                    BorderBrush = new SolidColorBrush((WpfColor)ColorConverter.ConvertFromString("#CA8A04")),
+                    BorderThickness = new Thickness(1),
+                    CornerRadius = new CornerRadius(3),
+                    Padding = new Thickness(4, 1, 4, 1),
+                    Margin = new Thickness(0, 0, 4, 0),
+                    VerticalAlignment = VerticalAlignment.Center
+                };
+                catBadge.Child = new WpfTextBlock
+                {
+                    Text = cat,
+                    FontSize = 8.5,
+                    FontWeight = FontWeights.Bold,
+                    Foreground = new SolidColorBrush((WpfColor)ColorConverter.ConvertFromString("#854D0E"))
+                };
+                badgeStack.Children.Add(catBadge);
+            }
+
+            mapStack.Children.Add(badgeStack);
+            mapBox.Child = mapStack;
+            WpfGrid.SetRow(mapBox, 2);
+            cardLayout.Children.Add(mapBox);
+
             // Scheme Checkboxes
-            StackPanel optionsPanel = new StackPanel { Orientation = WpfOrientation.Horizontal, Margin = new Thickness(0, 0, 0, 16) };
+            StackPanel optionsPanel = new StackPanel { Orientation = WpfOrientation.Horizontal, Margin = new Thickness(0, 0, 0, 14) };
             
             WpfCheckBox chkGross = new WpfCheckBox
             {
@@ -1430,14 +1602,14 @@ namespace ZoningFloorArea.Views
             chkDed.Unchecked += (s, e) => _vm.PropagateDeductionsArea = false;
             optionsPanel.Children.Add(chkDed);
 
-            WpfGrid.SetRow(optionsPanel, 2);
+            WpfGrid.SetRow(optionsPanel, 3);
             cardLayout.Children.Add(optionsPanel);
 
             // Scrollable Propagation Summary
             ScrollViewer scroll = new ScrollViewer { VerticalScrollBarVisibility = ScrollBarVisibility.Auto };
             _propagateSummaryContainer = new StackPanel();
             scroll.Content = _propagateSummaryContainer;
-            WpfGrid.SetRow(scroll, 3);
+            WpfGrid.SetRow(scroll, 4);
             cardLayout.Children.Add(scroll);
 
             card.Child = cardLayout;
@@ -1531,10 +1703,10 @@ namespace ZoningFloorArea.Views
 
                     WpfGrid gGrid = new WpfGrid();
                     gGrid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(28) });
+                    gGrid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1.3, GridUnitType.Star) });
                     gGrid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1.4, GridUnitType.Star) });
-                    gGrid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
-                    gGrid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1.3, GridUnitType.Star) });
-                    gGrid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1.3, GridUnitType.Star) });
+                    gGrid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1.1, GridUnitType.Star) });
+                    gGrid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1.2, GridUnitType.Star) });
 
                     // Color
                     Border dot = new Border
@@ -1553,11 +1725,19 @@ namespace ZoningFloorArea.Views
                     WpfGrid.SetColumn(txtName, 1);
                     gGrid.Children.Add(txtName);
 
-                    // Source
-                    string srcLabel = g.IsDuplexModule ? string.Format("Lower: {0} | Upper: {1}", g.SourceLevelNameLower, g.SourceLevelNameUpper) : "Source: " + g.SourceLevelName;
-                    WpfTextBlock txtSrc = new WpfTextBlock { Text = srcLabel, Foreground = new SolidColorBrush(COL_TEXT_MUTED), VerticalAlignment = VerticalAlignment.Center };
-                    WpfGrid.SetColumn(txtSrc, 2);
-                    gGrid.Children.Add(txtSrc);
+                    // Source & Modeled Breakdown
+                    string srcLabel = g.IsDuplexModule
+                        ? string.Format("Lower: {0} | Upper: {1}", g.SourceLevelNameLower, g.SourceLevelNameUpper)
+                        : "Source: " + g.SourceLevelName;
+                    string detailStr = g.IsDuplexModule
+                        ? string.Format("L: {0} | U: {1}", _vm.GetSourceLevelDetail(g.SourceLevelNameLower), _vm.GetSourceLevelDetail(g.SourceLevelNameUpper))
+                        : _vm.GetSourceLevelDetail(g.SourceLevelName);
+
+                    StackPanel srcStack = new StackPanel { VerticalAlignment = VerticalAlignment.Center };
+                    srcStack.Children.Add(new WpfTextBlock { Text = srcLabel, FontWeight = FontWeights.Medium, FontSize = 11.5 });
+                    srcStack.Children.Add(new WpfTextBlock { Text = detailStr, Foreground = new SolidColorBrush(COL_TEXT_MUTED), FontSize = 10, Margin = new Thickness(0, 1, 0, 0) });
+                    WpfGrid.SetColumn(srcStack, 2);
+                    gGrid.Children.Add(srcStack);
 
                     // Range
                     string rangeStr = g.IsSingleLevel ? "Single Floor (" + g.SourceLevelName + ")" : "Range: " + g.FromLevelName + " → " + g.ToLevelName;

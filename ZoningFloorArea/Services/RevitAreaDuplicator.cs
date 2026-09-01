@@ -76,6 +76,58 @@ namespace ZoningFloorArea.Services
             return string.Format("🟢 {0} Area(s) modeled ({1:N0} SF)", totalAreas, totalSqFt);
         }
 
+        public string GetLevelAreaDetail(string levelName, string grossSchemeName, string dedSchemeName, string dedParamName)
+        {
+            if (string.IsNullOrEmpty(levelName)) return "No level";
+
+            List<Level> levels = GetAllLevels();
+            Level lvl = levels.FirstOrDefault(l => string.Equals(l.Name, levelName, StringComparison.OrdinalIgnoreCase));
+            if (lvl == null) return "Level not found";
+
+            double grossSqFt = 0;
+            double dedSqFt = 0;
+            List<string> foundCategories = new List<string>();
+
+            FilteredElementCollector collector = new FilteredElementCollector(_doc)
+                .OfCategory(BuiltInCategory.OST_Areas)
+                .WhereElementIsNotElementType();
+
+            foreach (Area a in collector.Cast<Area>())
+            {
+                if (a.LevelId == lvl.Id && a.Area > 0 && a.AreaScheme != null)
+                {
+                    if (string.Equals(a.AreaScheme.Name, grossSchemeName, StringComparison.OrdinalIgnoreCase))
+                    {
+                        grossSqFt += a.Area;
+                    }
+                    else if (string.Equals(a.AreaScheme.Name, dedSchemeName, StringComparison.OrdinalIgnoreCase) ||
+                             (!string.IsNullOrEmpty(grossSchemeName) && !string.Equals(a.AreaScheme.Name, grossSchemeName, StringComparison.OrdinalIgnoreCase)))
+                    {
+                        dedSqFt += a.Area;
+                        string cat = string.Empty;
+                        if (!string.IsNullOrEmpty(dedParamName))
+                        {
+                            Parameter p = a.LookupParameter(dedParamName);
+                            if (p != null) cat = p.AsString() ?? p.AsValueString();
+                        }
+                        if (string.IsNullOrEmpty(cat)) cat = a.Name;
+                        if (!string.IsNullOrEmpty(cat) && !foundCategories.Contains(cat))
+                        {
+                            foundCategories.Add(cat);
+                        }
+                    }
+                }
+            }
+
+            if (grossSqFt == 0 && dedSqFt == 0)
+            {
+                return "⚠️ Empty Level (0 Areas modeled)";
+            }
+
+            string catSummary = foundCategories.Count > 0 ? " [" + string.Join(", ", foundCategories.Take(3).ToArray()) + (foundCategories.Count > 3 ? "..." : "") + "]" : "";
+            return string.Format("Gross: {0:N0} SF | Deductions: {1:N0} SF{2}", grossSqFt, dedSqFt, catSummary);
+        }
+
         public string PropagateMultipleGroups(
             List<TypicalFloorGroup> groups,
             MappingConfig config,
