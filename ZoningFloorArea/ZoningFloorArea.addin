@@ -2,7 +2,13 @@
 <RevitAddIns>
   <AddIn Type="Application">
     <Name>Zoning Floor Area Calculator</Name>
-    <Assembly>C:\Users\MSI\AppData\Roaming\Autodesk\Revit\Addins\2026\ZoningFloorArea\ZoningFloorArea.dll</Assembly>
+    <!-- Ruta RELATIVA a la ubicación de este .addin.
+         El manifiesto vive en  %APPDATA%\Autodesk\Revit\Addins\<ver>\
+         y el ensamblado en     %APPDATA%\Autodesk\Revit\Addins\<ver>\ZoningFloorArea\
+         Nunca vuelvas a poner una ruta absoluta aquí: rompe la instalación
+         en cualquier PC que no sea el del desarrollador (hallazgo A1 de la
+         auditoría — esto es lo que impidió instalarlo hasta ahora). -->
+    <Assembly>ZoningFloorArea\ZoningFloorArea.dll</Assembly>
     <FullClassName>ZoningFloorArea.App</FullClassName>
     <ClientId>a7e492b1-5821-4f18-a621-8f9f7438c821</ClientId>
     <VendorId>BauTools</VendorId>

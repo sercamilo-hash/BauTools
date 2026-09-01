@@ -1,0 +1,89 @@
+<Project>
+
+  <!--
+    ════════════════════════════════════════════════════════════════════════
+    BauTools — Configuración común de build (multi-versión Revit)
+    ════════════════════════════════════════════════════════════════════════
+
+    Se compila por CONFIGURACIÓN, no por TargetFramework, porque Revit 2025 y
+    2026 comparten el mismo TFM (net8.0-windows) pero referencian ensamblados
+    RevitAPI.dll distintos. `<TargetFrameworks>` no puede desambiguarlos.
+
+    Uso:
+      dotnet build -c "Release R26"
+      dotnet build -c "Release R25"
+      dotnet build -c "Release R24"
+
+    Constantes disponibles en el código:
+      REVIT2024 / REVIT2025 / REVIT2026
+      REVIT2024_OR_GREATER / REVIT2025_OR_GREATER / REVIT2026_OR_GREATER
+  -->
+
+  <PropertyGroup>
+    <Configurations>Debug R24;Debug R25;Debug R26;Release R24;Release R25;Release R26</Configurations>
+    <Platforms>x64</Platforms>
+  </PropertyGroup>
+
+  <!-- ── Revit 2024 · .NET Framework 4.8 ───────────────────────────────── -->
+  <PropertyGroup Condition="$(Configuration.Contains('R24'))">
+    <RevitVersion>2024</RevitVersion>
+    <TargetFramework>net48</TargetFramework>
+    <DefineConstants>$(DefineConstants);REVIT2024;REVIT2024_OR_GREATER</DefineConstants>
+  </PropertyGroup>
+
+  <!-- ── Revit 2025 · .NET 8 ───────────────────────────────────────────── -->
+  <PropertyGroup Condition="$(Configuration.Contains('R25'))">
+    <RevitVersion>2025</RevitVersion>
+    <TargetFramework>net8.0-windows</TargetFramework>
+    <DefineConstants>$(DefineConstants);REVIT2025;REVIT2024_OR_GREATER;REVIT2025_OR_GREATER</DefineConstants>
+  </PropertyGroup>
+
+  <!-- ── Revit 2026 · .NET 8 ───────────────────────────────────────────── -->
+  <PropertyGroup Condition="$(Configuration.Contains('R26'))">
+    <RevitVersion>2026</RevitVersion>
+    <TargetFramework>net8.0-windows</TargetFramework>
+    <DefineConstants>$(DefineConstants);REVIT2026;REVIT2024_OR_GREATER;REVIT2025_OR_GREATER;REVIT2026_OR_GREATER</DefineConstants>
+  </PropertyGroup>
+
+  <!-- Red de seguridad: si alguien compila con `dotnet build` a secas
+       (Configuration=Debug), caemos en la versión por defecto en vez de
+       fallar con un error críptico de TargetFramework vacío. -->
+  <PropertyGroup Condition="'$(RevitVersion)' == ''">
+    <RevitVersion>2026</RevitVersion>
+    <TargetFramework>net8.0-windows</TargetFramework>
+    <DefineConstants>$(DefineConstants);REVIT2026;REVIT2024_OR_GREATER;REVIT2025_OR_GREATER;REVIT2026_OR_GREATER</DefineConstants>
+  </PropertyGroup>
+
+  <!-- ── Propiedades comunes ───────────────────────────────────────────── -->
+  <PropertyGroup>
+    <LangVersion>latest</LangVersion>
+    <PlatformTarget>x64</PlatformTarget>
+    <!-- false: el proyecto trae su propio Properties\AssemblyInfo.cs. -->
+    <GenerateAssemblyInfo>false</GenerateAssemblyInfo>
+    <AppendTargetFrameworkToOutputPath>false</AppendTargetFrameworkToOutputPath>
+  </PropertyGroup>
+
+  <PropertyGroup Condition="$(Configuration.StartsWith('Debug'))">
+    <DefineConstants>$(DefineConstants);DEBUG</DefineConstants>
+    <Optimize>false</Optimize>
+    <DebugType>portable</DebugType>
+    <DebugSymbols>true</DebugSymbols>
+  </PropertyGroup>
+
+  <PropertyGroup Condition="$(Configuration.StartsWith('Release'))">
+    <Optimize>true</Optimize>
+    <DebugType>portable</DebugType>
+  </PropertyGroup>
+
+  <PropertyGroup>
+    <TreatWarningsAsErrors>false</TreatWarningsAsErrors>
+    <WarningLevel>5</WarningLevel>
+    <NoWarn>$(NoWarn);CS1591</NoWarn>
+
+    <Company>ARYE / KHL Architecture</Company>
+    <Authors>Arch. Sergio Castro</Authors>
+    <Product>BauTools</Product>
+    <Version>3.0.0</Version>
+  </PropertyGroup>
+
+</Project>

@@ -8,14 +8,20 @@
 .vs/
 .vscode/
 
-# Keep the compiled DLL in the pyRevit extension bin folder for distribution
-!BauTools.extension/bin/ZoningFloorArea.dll
+# Artefactos compilados sueltos: nunca versionar el DLL, siempre se genera
+# desde build/build-and-deploy.ps1 (hallazgo A8 de la auditoría).
+ZoningFloorArea/ZoningFloorArea.dll
+BauTools.extension/bin/
 
 # Autodesk Revit proprietary assemblies (Do not distribute on public repos)
 lib/RevitAPI.dll
 lib/RevitAPIUI.dll
 lib/
 *.dll.config
+*.pdb
+
+# NuGet
+packages/
 
 # OS generated files
 Thumbs.db
