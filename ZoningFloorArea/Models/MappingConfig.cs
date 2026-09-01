@@ -22,6 +22,8 @@ namespace ZoningFloorArea.Models
 
         public UnitDisplayMode DisplayUnit { get; set; }
 
+        public bool IncludeBuildingInTitleOnSheet { get; set; }
+
         public MappingConfig()
         {
             GrossAreaSchemeName = "Gross Building";
@@ -31,6 +33,7 @@ namespace ZoningFloorArea.Models
             BuildingParameterName = "Building";
             MasterScopeBoxName = "";
             ViewBuildingParameterName = "Building";
+            IncludeBuildingInTitleOnSheet = false;
 
             BuildingName = "BUILDING C";
             LotArea = 34500.0;

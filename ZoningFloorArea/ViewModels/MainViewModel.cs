@@ -1151,70 +1151,9 @@ namespace ZoningFloorArea.ViewModels
                         if (string.IsNullOrEmpty(srcLevel)) continue;
 
                         string rangeLabel = _viewGenService.GetGroupRangeLabel(group);
-                        string bldgTag = bldg.Name.ToUpperInvariant();
                         string vName = "";
                         string titleOnSheet = "";
-
-                        switch (pkg.PackageType)
-                        {
-                            case ViewPackageType.GrossArea:
-                                vName = string.Format("FL. {0} - GROSS AREA PLAN ({1})", rangeLabel, bldgTag);
-                                titleOnSheet = string.Format("{0} - {1} GROSS AREA PLAN", bldgTag, rangeLabel.ToUpperInvariant());
-                                break;
-                            case ViewPackageType.Deductions:
-                                vName = string.Format("FL. {0} - DEDUCTIONS PLAN ({1})", rangeLabel, bldgTag);
-                                titleOnSheet = string.Format("{0} - {1} DEDUCTIONS PLAN", bldgTag, rangeLabel.ToUpperInvariant());
-                                break;
-                            case ViewPackageType.Architectural:
-                                if (pkg.ViewKind == ViewPlanKind.AreaPlan)
-                                {
-                                    string schName = !string.IsNullOrEmpty(pkg.SelectedAreaSchemeName) ? pkg.SelectedAreaSchemeName : "Area";
-                                    vName = string.Format("FL. {0} - {1} PLAN ({2})", rangeLabel, schName.ToUpperInvariant(), bldgTag);
-                                    titleOnSheet = string.Format("{0} - {1} {2} PLAN", bldgTag, rangeLabel.ToUpperInvariant(), schName.ToUpperInvariant());
-                                }
-                                else
-                                {
-                                    vName = string.Format("FL. {0} - ARCHITECTURAL PLAN ({1})", rangeLabel, bldgTag);
-                                    titleOnSheet = string.Format("{0} - {1} FLOOR PLAN", bldgTag, rangeLabel.ToUpperInvariant());
-                                }
-                                break;
-                            case ViewPackageType.CeilingPlanRCP:
-                                vName = string.Format("FL. {0} - CEILING PLAN RCP ({1})", rangeLabel, bldgTag);
-                                titleOnSheet = string.Format("{0} - {1} REFLECTED CEILING PLAN", bldgTag, rangeLabel.ToUpperInvariant());
-                                break;
-                                case ViewPackageType.EgressLifeSafety:
-                                if (pkg.ViewKind == ViewPlanKind.AreaPlan)
-                                {
-                                    vName = string.Format("FL. {0} - LIFE SAFETY AREA PLAN ({1})", rangeLabel, bldgTag);
-                                    titleOnSheet = string.Format("{0} - {1} LIFE SAFETY AREA PLAN", bldgTag, rangeLabel.ToUpperInvariant());
-                                }
-                                else
-                                {
-                                    vName = string.Format("FL. {0} - LIFE SAFETY PLAN ({1})", rangeLabel, bldgTag);
-                                    titleOnSheet = string.Format("{0} - {1} LIFE SAFETY PLAN", bldgTag, rangeLabel.ToUpperInvariant());
-                                }
-                                break;
-                            case ViewPackageType.Custom:
-                            default:
-                                string pkgTitle = !string.IsNullOrEmpty(pkg.DisplayName) ? pkg.DisplayName.ToUpperInvariant() : "CUSTOM";
-                                if (pkg.ViewKind == ViewPlanKind.AreaPlan)
-                                {
-                                    string sch = !string.IsNullOrEmpty(pkg.SelectedAreaSchemeName) ? pkg.SelectedAreaSchemeName.ToUpperInvariant() : "AREA";
-                                    vName = string.Format("FL. {0} - {1} [{2}] ({3})", rangeLabel, pkgTitle, sch, bldgTag);
-                                    titleOnSheet = string.Format("{0} - {1} {2}", bldgTag, rangeLabel.ToUpperInvariant(), pkgTitle);
-                                }
-                                else if (pkg.ViewKind == ViewPlanKind.CeilingPlan)
-                                {
-                                    vName = string.Format("FL. {0} - {1} RCP ({2})", rangeLabel, pkgTitle, bldgTag);
-                                    titleOnSheet = string.Format("{0} - {1} {2}", bldgTag, rangeLabel.ToUpperInvariant(), pkgTitle);
-                                }
-                                else
-                                {
-                                    vName = string.Format("FL. {0} - {1} ({2})", rangeLabel, pkgTitle, bldgTag);
-                                    titleOnSheet = string.Format("{0} - {1} {2}", bldgTag, rangeLabel.ToUpperInvariant(), pkgTitle);
-                                }
-                                break;
-                        }
+                        _viewGenService.GetPackageViewNameAndTitle(pkg, group, bldg, Config, out vName, out titleOnSheet);
 
                         queuedViewports.Add(new PlannedViewport
                         {

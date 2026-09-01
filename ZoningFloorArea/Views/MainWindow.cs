@@ -2514,11 +2514,34 @@ namespace ZoningFloorArea.Views
                 Content = "Reposition & update viewports if views already exist on sheets",
                 IsChecked = _vm.RepositionIfExists,
                 FontWeight = FontWeights.Medium,
-                Margin = new Thickness(0, 0, 0, 4)
+                Margin = new Thickness(0, 0, 0, 6)
             };
             chkRepo.Checked += (s, e) => _vm.RepositionIfExists = true;
             chkRepo.Unchecked += (s, e) => _vm.RepositionIfExists = false;
             formStack.Children.Add(chkRepo);
+
+            // Checkbox: Include Building Name in Title on Sheet
+            WpfCheckBox chkBldgTitle = new WpfCheckBox
+            {
+                Content = "Incluir Prefijo de Edificio en 'Title on Sheet' (ej: BUILDING A - 2ND TO 6TH FL...)",
+                IsChecked = _vm.Config.IncludeBuildingInTitleOnSheet,
+                FontWeight = FontWeights.Medium,
+                Margin = new Thickness(0, 0, 0, 8),
+                ToolTip = "Si está desmarcado, el título en la lámina solo mostrará el rango y tipo (ej: 2ND TO 6TH FL. GROSS AREAS)."
+            };
+            chkBldgTitle.Checked += (s, e) =>
+            {
+                _vm.Config.IncludeBuildingInTitleOnSheet = true;
+                _vm.ComputePlannedSheets();
+                RefreshStep4PreviewUI();
+            };
+            chkBldgTitle.Unchecked += (s, e) =>
+            {
+                _vm.Config.IncludeBuildingInTitleOnSheet = false;
+                _vm.ComputePlannedSheets();
+                RefreshStep4PreviewUI();
+            };
+            formStack.Children.Add(chkBldgTitle);
 
             scroll.Content = formStack;
             WpfGrid.SetRow(scroll, 1);
